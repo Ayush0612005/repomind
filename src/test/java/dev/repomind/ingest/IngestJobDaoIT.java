@@ -2,19 +2,14 @@ package dev.repomind.ingest;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
-import dev.repomind.TestcontainersConfiguration;
 import dev.repomind.repo.Repo;
 import dev.repomind.repo.RepoDao;
 import dev.repomind.repo.RepoStatus;
+import dev.repomind.support.IntegrationTest;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 
-@SpringBootTest
-@ActiveProfiles("test")
-@Import(TestcontainersConfiguration.class)
+@IntegrationTest
 class IngestJobDaoIT {
 
 	@Autowired

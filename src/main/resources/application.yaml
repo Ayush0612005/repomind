@@ -8,15 +8,30 @@ spring:
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
   ai:
+    model:
+      # anthropic (needs ANTHROPIC_API_KEY) or ollama (local GPU, no key)
+      chat: ${REPOMIND_CHAT_PROVIDER:anthropic}
+      embedding: ollama
+    anthropic:
+      api-key: ${ANTHROPIC_API_KEY:}
+      chat:
+        options:
+          model: ${REPOMIND_ANTHROPIC_MODEL:claude-sonnet-5-5}
+          max-tokens: 1500
+          temperature: 0.1
     ollama:
       base-url: ${OLLAMA_URL:http://localhost:11434}
+      chat:
+        options:
+          model: ${REPOMIND_OLLAMA_CHAT_MODEL:qwen2.5-coder:7b}
+          temperature: 0.1
+          num-ctx: 16384
       embedding:
         options:
           model: nomic-embed-text
       init:
         pull-model-strategy: when_missing
-        embedding:
-          additional-models: []
+        timeout: 15m
 
 management:
   endpoints:

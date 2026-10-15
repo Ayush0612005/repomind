@@ -1,5 +1,8 @@
 spring:
   ai:
+    model:
+      chat: none
+      embedding: none
     ollama:
       init:
         pull-model-strategy: never

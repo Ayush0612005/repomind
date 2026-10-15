@@ -24,11 +24,6 @@ public record CodeChunk(
 		String searchText,
 		int tokenCount) {
 
-	/** Text sent to the embedding model: a short header gives the vector its location context. */
-	public String embeddingText() {
-		return "// " + filePath + "\n// " + kind.name().toLowerCase() + " " + symbol + "\n" + content;
-	}
-
 	public String citation() {
 		return filePath + ":" + startLine + "-" + endLine;
 	}
