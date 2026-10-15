@@ -19,6 +19,7 @@
 		<java.version>25</java.version>
 		<spring-ai.version>2.0.1</spring-ai.version>
 		<javaparser.version>3.28.2</javaparser.version>
+		<argLine>-Duser.timezone=UTC -XX:+EnableDynamicAgentLoading</argLine>
 	</properties>
 
 	<dependencies>
@@ -129,6 +130,18 @@
 			<plugin>
 				<groupId>org.springframework.boot</groupId>
 				<artifactId>spring-boot-maven-plugin</artifactId>
+			</plugin>
+			<plugin>
+				<groupId>org.apache.maven.plugins</groupId>
+				<artifactId>maven-failsafe-plugin</artifactId>
+				<executions>
+					<execution>
+						<goals>
+							<goal>integration-test</goal>
+							<goal>verify</goal>
+						</goals>
+					</execution>
+				</executions>
 			</plugin>
 		</plugins>
 	</build>
