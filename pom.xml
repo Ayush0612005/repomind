@@ -19,6 +19,7 @@
 		<java.version>25</java.version>
 		<spring-ai.version>2.0.1</spring-ai.version>
 		<javaparser.version>3.28.2</javaparser.version>
+		<jgit.version>7.8.0.202609011348-r</jgit.version>
 		<argLine>-Duser.timezone=UTC -XX:+EnableDynamicAgentLoading</argLine>
 	</properties>
 
@@ -68,6 +69,18 @@
 			<artifactId>spring-ai-starter-model-ollama</artifactId>
 		</dependency>
 
+		<dependency>
+			<groupId>org.springframework.ai</groupId>
+			<artifactId>spring-ai-starter-model-anthropic</artifactId>
+		</dependency>
+
+		<!-- Git -->
+		<dependency>
+			<groupId>org.eclipse.jgit</groupId>
+			<artifactId>org.eclipse.jgit</artifactId>
+			<version>${jgit.version}</version>
+		</dependency>
+
 		<!-- Code parsing -->
 		<dependency>
 			<groupId>com.github.javaparser</groupId>
@@ -94,6 +107,11 @@
 		<dependency>
 			<groupId>org.springframework.boot</groupId>
 			<artifactId>spring-boot-testcontainers</artifactId>
+			<scope>test</scope>
+		</dependency>
+		<dependency>
+			<groupId>org.awaitility</groupId>
+			<artifactId>awaitility</artifactId>
 			<scope>test</scope>
 		</dependency>
 		<dependency>
