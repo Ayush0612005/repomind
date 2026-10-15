@@ -1,0 +1,25 @@
+spring:
+  application:
+    name: repomind
+  datasource:
+    url: ${DB_URL:jdbc:postgresql://localhost:5432/repomind}
+    username: ${DB_USER:repomind}
+    password: ${DB_PASSWORD:repomind}
+  kafka:
+    bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+  ai:
+    ollama:
+      base-url: ${OLLAMA_URL:http://localhost:11434}
+      embedding:
+        options:
+          model: nomic-embed-text
+      init:
+        pull-model-strategy: when_missing
+        embedding:
+          additional-models: []
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info,metrics
