@@ -7,6 +7,16 @@ spring:
     password: ${DB_PASSWORD:repomind}
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
+    consumer:
+      auto-offset-reset: earliest
+      # an ingestion can take minutes: take one job per poll and allow a long gap between polls so
+      # the broker does not rebalance the partition away mid-job and redeliver it
+      max-poll-records: 1
+      properties:
+        max.poll.interval.ms: 3600000
+    listener:
+      concurrency: 3
+      ack-mode: record
   ai:
     model:
       # anthropic (needs ANTHROPIC_API_KEY) or ollama (local GPU, no key)

@@ -83,6 +83,7 @@ public class RepoDao {
 				rs.getString("clone_url"),
 				rs.getString("default_branch"),
 				rs.getString("commit_sha"),
+				rs.getObject("active_job_id", UUID.class),
 				RepoStatus.valueOf(rs.getString("status")),
 				rs.getObject("created_at", OffsetDateTime.class).toInstant(),
 				rs.getObject("updated_at", OffsetDateTime.class).toInstant());

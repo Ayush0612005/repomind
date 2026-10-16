@@ -2,7 +2,9 @@ package dev.repomind.ingest;
 
 import java.sql.ResultSet;
 import java.sql.SQLException;
+import java.time.Duration;
 import java.time.OffsetDateTime;
+import java.util.List;
 import java.util.Optional;
 import java.util.UUID;
 
@@ -49,6 +51,38 @@ public class IngestJobDao {
 			.param("repo", repositoryId)
 			.query(Boolean.class)
 			.single();
+	}
+
+	/**
+	 * Atomically moves a QUEUED job to CLONING. Returns false if another consumer already claimed
+	 * it, which makes processing idempotent under Kafka's at-least-once delivery.
+	 */
+	public boolean claim(UUID id) {
+		return jdbc.sql("""
+				UPDATE ingest_jobs SET status = 'CLONING', started_at = now()
+				WHERE id = :id AND status = 'QUEUED'
+				""").param("id", id).update() == 1;
+	}
+
+	/** QUEUED jobs older than {@code age}: their Kafka message was probably never sent. */
+	public List<IngestJob> findQueuedOlderThan(Duration age) {
+		return jdbc.sql("""
+				SELECT * FROM ingest_jobs
+				WHERE status = 'QUEUED' AND created_at < now() - make_interval(secs => :seconds)
+				ORDER BY created_at
+				LIMIT 100
+				""").param("seconds", age.toSeconds()).query(MAPPER).list();
+	}
+
+	/** Fails running jobs whose worker died; returns the affected repository ids. */
+	public List<UUID> failRunningOlderThan(Duration age) {
+		return jdbc.sql("""
+				UPDATE ingest_jobs
+				SET status = 'FAILED', error = 'Timed out: worker stopped responding', finished_at = now()
+				WHERE status IN ('CLONING', 'PARSING', 'EMBEDDING')
+				  AND started_at < now() - make_interval(secs => :seconds)
+				RETURNING repository_id
+				""").param("seconds", age.toSeconds()).query(UUID.class).list();
 	}
 
 	public void transition(UUID id, JobStatus status) {
