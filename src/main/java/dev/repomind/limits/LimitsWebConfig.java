@@ -15,8 +15,11 @@ public class LimitsWebConfig implements WebMvcConfigurer {
 
 	@Override
 	public void addInterceptors(InterceptorRegistry registry) {
-		// GitHub authenticates webhook deliveries by signature and must never be rate limited away
-		registry.addInterceptor(interceptor).addPathPatterns("/api/**").excludePathPatterns("/api/github/webhook");
+		// the REST API and the MCP endpoint share keys, rate limits and budgets; GitHub authenticates
+		// webhook deliveries by signature and must never be rate limited away
+		registry.addInterceptor(interceptor)
+			.addPathPatterns("/api/**", "/mcp", "/mcp/**")
+			.excludePathPatterns("/api/github/webhook");
 	}
 
 }

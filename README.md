@@ -6,7 +6,7 @@ reviews pull requests, and exposes itself as an **MCP server** so AI agents can 
 The interesting part is the backend engineering around the LLM: asynchronous ingestion, AST-aware
 chunking, hybrid retrieval, caching, cost control, provider fallback and measured accuracy.
 
-> 🚧 Under active development — see the roadmap below for progress.
+> All six roadmap phases are complete; see the roadmap and evaluation results below.
 
 ## Tech stack
 
@@ -16,12 +16,12 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 | Code parsing | JavaParser — AST-based chunking by class/method with metadata |
 | Vector store | PostgreSQL 18 + pgvector, hybrid search (vector + full-text) |
 | LLMs | Anthropic Claude (primary) via Spring AI, Ollama local model (dev + fallback) |
-| Ingestion | Kafka topics for repo-ingest jobs, progress tracked in Postgres |
-| Caching / limits | Redis response cache + semantic cache, per-user token budgets and rate limits |
+| Ingestion | Kafka topics for ingest and review jobs, state tracked in Postgres |
+| Caching / limits | Redis exact-answer cache + pgvector semantic cache, per-client rate limits and daily token budgets in Redis |
 | Integrations | GitHub REST API + webhooks (PR opened → review comments) |
-| Agent access | MCP server exposing `search_code`, `explain_class` tools |
-| Evaluation | JUnit-driven question/answer eval harness, accuracy tracked per release |
-| Ops | Testcontainers, GitHub Actions, Prometheus + Grafana, Docker Compose, AWS EC2 |
+| Agent access | MCP server (Streamable HTTP) exposing `search_code`, `explain_class`, `ask_codebase` |
+| Evaluation | 40-question retrieval eval gating CI; opt-in end-to-end answer eval with real models |
+| Ops | Testcontainers, GitHub Actions, Micrometer metrics, Resilience4j, Docker Compose |
 
 ## Roadmap
 
@@ -30,7 +30,7 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 - [x] **Phase 3 — Evals:** 30–50 question eval set, accuracy score in CI
 - [x] **Phase 4 — Cost control:** response + semantic cache, token budgets, provider fallback to Ollama
 - [x] **Phase 5 — PR review:** GitHub webhook → diff analysis → review comments
-- [ ] **Phase 6 — MCP server:** expose tools to agents, tested from an MCP client
+- [x] **Phase 6 — MCP server:** expose tools to agents, tested from an MCP client
 
 ## API
 
@@ -47,6 +47,28 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 | `POST` | `/api/github/webhook` | GitHub `pull_request` webhook: reviews each new commit automatically |
 
 Errors use RFC 9457 problem details.
+
+### MCP server
+
+RepoMind is also an [MCP](https://modelcontextprotocol.io) server (Streamable HTTP at `/mcp`), so
+coding agents can query indexed repositories directly:
+
+| Tool | Returns |
+|---|---|
+| `list_repositories` | Indexed repositories with status and commit |
+| `search_code` | Hybrid search hits with `file:line` locations and source |
+| `explain_class` | A type's skeleton, every method with its location, and code that refers to it |
+| `ask_codebase` | A cited answer from RepoMind's model (counts against the caller's token budget) |
+
+The first three return data rather than prose: the agent has its own model and does better
+reasoning over exact code than over a summary. `/mcp` shares the API keys, rate limits and token
+budgets of `/api`. To connect Claude Code:
+
+```bash
+claude mcp add --transport http repomind http://localhost:8080/mcp --header "X-Api-Key: $REPOMIND_KEY"
+```
+
+`McpServerIT` drives the server with the official MCP Java SDK client over a real HTTP port.
 
 ### Answer cache
 

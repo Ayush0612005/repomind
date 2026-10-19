@@ -29,6 +29,17 @@ spring:
       # ChatGateway falls back from one to the other (order: repomind.chat.order). To run on
       # Ollama alone, without an API key, set SPRING_AI_MODEL_CHAT=ollama.
       embedding: ollama
+    mcp:
+      server:
+        # MCP over Streamable HTTP at /mcp, behind the same API keys and limits as /api. Set the
+        # protocol explicitly: when it is unset the starter falls back to the older SSE transport
+        protocol: STREAMABLE
+        name: repomind
+        version: 0.1.0
+        instructions: >-
+          RepoMind indexes Java repositories. Call list_repositories first, then search_code or
+          explain_class to read code with file:line locations. ask_codebase answers a question with
+          citations but spends the caller's token budget.
     retry:
       # Spring AI retries a failed call up to 10 times with backoff by default, which would make
       # falling back take minutes; retry once quickly and let ChatGateway move on
