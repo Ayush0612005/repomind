@@ -12,16 +12,11 @@ import dev.repomind.repo.Repo;
 import dev.repomind.support.IntegrationTest;
 import dev.repomind.support.ScriptedChatModel;
 import dev.repomind.support.TestIndexer;
-import io.lettuce.core.ClientOptions;
-import io.lettuce.core.SocketOptions;
+import dev.repomind.support.UnreachableRedis;
 import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.data.redis.connection.RedisStandaloneConfiguration;
-import org.springframework.data.redis.connection.lettuce.LettuceClientConfiguration;
-import org.springframework.data.redis.connection.lettuce.LettuceConnectionFactory;
-import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import tools.jackson.databind.json.JsonMapper;
@@ -125,31 +120,20 @@ class AnswerCacheIT {
 
 	@Test
 	void redisOutageDegradesToTheSemanticTierInsteadOfFailing() {
-		LettuceConnectionFactory unreachable = new LettuceConnectionFactory(new RedisStandaloneConfiguration("localhost", 1),
-				LettuceClientConfiguration.builder()
-					.commandTimeout(Duration.ofMillis(300))
-					.clientOptions(ClientOptions.builder()
-						.socketOptions(SocketOptions.builder().connectTimeout(Duration.ofMillis(300)).build())
-						.build())
-					.build());
-		unreachable.afterPropertiesSet();
-		unreachable.start();
 		SimpleMeterRegistry meters = new SimpleMeterRegistry();
-		AnswerCache cache = new AnswerCache(new StringRedisTemplate(unreachable), jdbc, json,
-				new CacheProperties(true, Duration.ofHours(1), true, 0.97), meters);
 		float[] vector = new float[768];
 		vector[0] = 1;
 		Answer answer = new Answer("cached", List.of(), List.of(), null, 5, Answer.Cache.MISS);
-		try {
+		try (UnreachableRedis redis = new UnreachableRedis()) {
+			AnswerCache cache = new AnswerCache(redis.template(), jdbc, json,
+					new CacheProperties(true, Duration.ofHours(1), true, 0.97), meters);
+
 			cache.store(repo, "Where is the owner repository?", vector, answer);
 
 			assertThat(cache.exact(repo, "Where is the owner repository?")).isEmpty();
 			assertThat(cache.semantic(repo, "Where is the owner repository?", vector))
 				.hasValueSatisfying(a -> assertThat(a.answer()).isEqualTo("cached"));
 			assertThat(meters.find("repomind.qa.cache.errors").counters()).isNotEmpty();
-		}
-		finally {
-			unreachable.destroy();
 		}
 	}
 

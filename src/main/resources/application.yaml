@@ -64,3 +64,15 @@ repomind:
     token: ${GITHUB_TOKEN:}
     # the secret set on the GitHub webhook (Settings -> Webhooks); webhooks are rejected without it
     webhook-secret: ${GITHUB_WEBHOOK_SECRET:}
+  limits:
+    # identify callers by X-Api-Key and enforce per-client rate limits and daily model-token budgets
+    enabled: ${REPOMIND_LIMITS_ENABLED:false}
+    # requests without a key, limited per IP; remove to require a key
+    anonymous:
+      requests-per-minute: 10
+      daily-tokens: 50000
+    # clients:
+    #   - name: ci-bot
+    #     key-sha256: <printf %s "$KEY" | sha256sum>
+    #     requests-per-minute: 60
+    #     daily-tokens: 2000000

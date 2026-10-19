@@ -9,3 +9,18 @@ spring:
 repomind:
   github:
     webhook-secret: test-webhook-secret
+  limits:
+    enabled: true
+    # generous enough that no other integration test notices the limits
+    anonymous:
+      requests-per-minute: 100000
+      daily-tokens: 100000000
+    clients:
+      - name: rate-test        # key: rate-test-key
+        key-sha256: 13b4ace1755885a2194c37af17e59b6d6ea9f4f03e4d461e27330f038065b752
+        requests-per-minute: 3
+        daily-tokens: 100000000
+      - name: budget-test      # key: budget-test-key
+        key-sha256: 2df5dd5ab7659b56f8f02277b8d98bf268518a9dfa0efdd11fb35b7581d90dfa
+        requests-per-minute: 1000
+        daily-tokens: 1

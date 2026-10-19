@@ -28,7 +28,7 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 - [x] **Phase 1 — Ingestion:** clone repo, JavaParser chunking, embeddings into pgvector via async Kafka jobs, status API
 - [x] **Phase 2 — Q&A API:** hybrid retrieval + answers with file/line citations
 - [x] **Phase 3 — Evals:** 30–50 question eval set, accuracy score in CI
-- [ ] **Phase 4 — Cost control:** response + semantic cache, token budgets, provider fallback to Ollama *(answer cache done; budgets and fallback next)*
+- [ ] **Phase 4 — Cost control:** response + semantic cache, token budgets, provider fallback to Ollama *(answer cache, rate limits and token budgets done; provider fallback next)*
 - [x] **Phase 5 — PR review:** GitHub webhook → diff analysis → review comments
 - [ ] **Phase 6 — MCP server:** expose tools to agents, tested from an MCP client
 
@@ -62,6 +62,23 @@ current index generation, so re-indexing invalidates every cached answer for the
 
 Failed answers are never cached, and a Redis outage degrades to the semantic tier rather than
 failing requests. Hit and miss counts are exported as `repomind.qa.cache` metrics.
+
+### API keys, rate limits and token budgets
+
+With `REPOMIND_LIMITS_ENABLED=true`, every `/api` request is identified by its `X-Api-Key` (or
+`Authorization: Bearer`) header. Clients are configured under `repomind.limits.clients` with the
+SHA-256 of their key, never the key itself, and requests without a key fall back to a per-IP
+anonymous policy (remove it to require keys).
+
+- **Rate limit:** a token bucket per client in Redis, updated by one atomic Lua script using
+  Redis's clock, so concurrent requests and multiple app instances agree. Responses carry
+  `X-RateLimit-Limit` / `X-RateLimit-Remaining`; rejections are `429` with `Retry-After`.
+- **Daily token budget:** model tokens (provider-reported, estimated when a provider reports none)
+  per client per UTC day. It is checked immediately before a model call, so cache hits and requests
+  that never reach the model are free even when the budget is spent. Model-backed responses carry
+  `X-Token-Budget-Remaining`; an exhausted budget is `429` with `Retry-After` set to midnight UTC.
+- If Redis is unavailable, limits fail open (and count `repomind.limits.errors`) rather than taking
+  the API down. GitHub webhooks are exempt: they are authenticated by signature.
 
 ### GitHub setup
 

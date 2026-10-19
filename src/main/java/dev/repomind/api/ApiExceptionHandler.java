@@ -1,13 +1,18 @@
 package dev.repomind.api;
 
 import dev.repomind.ingest.IngestService.JobAlreadyRunningException;
+import dev.repomind.limits.BudgetExceededException;
+import dev.repomind.limits.InvalidApiKeyException;
+import dev.repomind.limits.RateLimitedException;
 import dev.repomind.qa.ModelUnavailableException;
 import dev.repomind.review.GitHubUnavailableException;
 import dev.repomind.review.PullRequestNotFoundException;
 import dev.repomind.review.WebhookRejectedException;
 import dev.repomind.search.NotIndexedException;
+import org.springframework.http.HttpHeaders;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
+import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.ExceptionHandler;
 import org.springframework.web.bind.annotation.RestControllerAdvice;
 import org.springframework.web.servlet.mvc.method.annotation.ResponseEntityExceptionHandler;
@@ -49,6 +54,32 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(WebhookRejectedException.class)
 	ProblemDetail webhookRejected(WebhookRejectedException ex) {
 		return ProblemDetail.forStatusAndDetail(ex.status(), ex.getMessage());
+	}
+
+	@ExceptionHandler(InvalidApiKeyException.class)
+	ResponseEntity<ProblemDetail> invalidApiKey(InvalidApiKeyException ex) {
+		return ResponseEntity.status(HttpStatus.UNAUTHORIZED)
+			.header(HttpHeaders.WWW_AUTHENTICATE, "Bearer realm=\"repomind\"")
+			.body(ProblemDetail.forStatusAndDetail(HttpStatus.UNAUTHORIZED, ex.getMessage()));
+	}
+
+	@ExceptionHandler(RateLimitedException.class)
+	ResponseEntity<ProblemDetail> rateLimited(RateLimitedException ex) {
+		return tooManyRequests(ex.getMessage(), ex.decision().retryAfterSeconds(), "rate-limit");
+	}
+
+	@ExceptionHandler(BudgetExceededException.class)
+	ResponseEntity<ProblemDetail> budgetExceeded(BudgetExceededException ex) {
+		return tooManyRequests(ex.getMessage(), ex.retryAfterSeconds(), "token-budget");
+	}
+
+	private static ResponseEntity<ProblemDetail> tooManyRequests(String detail, long retryAfterSeconds, String limit) {
+		ProblemDetail problem = ProblemDetail.forStatusAndDetail(HttpStatus.TOO_MANY_REQUESTS, detail);
+		problem.setProperty("limit", limit);
+		problem.setProperty("retryAfterSeconds", retryAfterSeconds);
+		return ResponseEntity.status(HttpStatus.TOO_MANY_REQUESTS)
+			.header(HttpHeaders.RETRY_AFTER, String.valueOf(retryAfterSeconds))
+			.body(problem);
 	}
 
 	@ExceptionHandler(JobAlreadyRunningException.class)

@@ -3,6 +3,8 @@ package dev.repomind.api;
 import java.net.URI;
 import java.util.UUID;
 
+import dev.repomind.limits.ApiClient;
+import dev.repomind.limits.TokenBudget;
 import dev.repomind.repo.RepoDao;
 import dev.repomind.review.Review;
 import dev.repomind.review.ReviewJob;
@@ -14,6 +16,7 @@ import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
+import org.springframework.web.bind.annotation.RequestAttribute;
 import org.springframework.web.bind.annotation.RestController;
 
 @RestController
@@ -27,11 +30,15 @@ public class ReviewController {
 
 	private final RepoDao repos;
 
-	public ReviewController(ReviewService reviews, ReviewJobService reviewJobs, ReviewJobDao jobs, RepoDao repos) {
+	private final TokenBudget budgets;
+
+	public ReviewController(ReviewService reviews, ReviewJobService reviewJobs, ReviewJobDao jobs, RepoDao repos,
+			TokenBudget budgets) {
 		this.reviews = reviews;
 		this.reviewJobs = reviewJobs;
 		this.jobs = jobs;
 		this.repos = repos;
+		this.budgets = budgets;
 	}
 
 	/**
@@ -39,9 +46,11 @@ public class ReviewController {
 	 * posted to GitHub; the comments are returned for inspection.
 	 */
 	@PostMapping("/api/repos/{id}/pulls/{number}/review")
-	Review review(@PathVariable UUID id, @PathVariable @Min(1) int number) {
+	ResponseEntity<Review> review(@PathVariable UUID id, @PathVariable @Min(1) int number,
+			@RequestAttribute(ApiClient.ATTRIBUTE) ApiClient client) {
 		var repo = repos.findById(id).orElseThrow(() -> new NotFoundException("No repository " + id));
-		return reviews.review(repo, number);
+		Review review = reviews.review(repo, number, budgets.forClient(client));
+		return BudgetHeaders.with(ResponseEntity.ok(), budgets, client).body(review);
 	}
 
 	/**

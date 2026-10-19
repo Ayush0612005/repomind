@@ -5,6 +5,8 @@ import java.util.Locale;
 import java.util.Optional;
 
 import dev.repomind.index.EmbeddingService;
+import dev.repomind.limits.ModelBudget;
+import dev.repomind.limits.TokenUsage;
 import dev.repomind.qa.cache.AnswerCache;
 import dev.repomind.repo.Repo;
 import dev.repomind.search.HybridSearch;
@@ -55,6 +57,14 @@ public class AnswerService {
 	}
 
 	public Answer ask(Repo repo, String question) {
+		return ask(repo, question, ModelBudget.UNLIMITED);
+	}
+
+	/**
+	 * @param budget reserved only when the model is actually called, so cached answers are served
+	 * even to clients whose budget is used up
+	 */
+	public Answer ask(Repo repo, String question, ModelBudget budget) {
 		if (repo.activeJobId() == null) {
 			throw new NotIndexedException(repo);
 		}
@@ -75,7 +85,7 @@ public class AnswerService {
 		}
 		meters.counter("repomind.qa.cache", "result", "miss").increment();
 
-		Answer answer = generate(repo, question, queryVector, start);
+		Answer answer = generate(repo, question, queryVector, budget, start);
 		cache.store(repo, question, queryVector, answer);
 		return answer;
 	}
@@ -86,7 +96,7 @@ public class AnswerService {
 		return cached.withCache(cached.cache(), elapsedMs(start));
 	}
 
-	private Answer generate(Repo repo, String question, float[] queryVector, long start) {
+	private Answer generate(Repo repo, String question, float[] queryVector, ModelBudget budget, long start) {
 		List<SearchHit> hits = search.search(repo, question, queryVector, properties.retrieveLimit(),
 				HybridSearch.Mode.HYBRID);
 		if (hits.isEmpty()) {
@@ -94,6 +104,7 @@ public class AnswerService {
 			return new Answer(NO_SOURCES, List.of(), List.of(), null, elapsedMs(start), Answer.Cache.MISS);
 		}
 		GroundedPrompt prompt = GroundedPrompt.build(repo.fullName(), question, hits, properties.maxContextTokens());
+		budget.reserve();
 
 		ChatResponse response;
 		Timer.Sample sample = Timer.start(meters);
@@ -110,6 +121,8 @@ public class AnswerService {
 		}
 
 		String text = response == null || response.getResult() == null ? null : response.getResult().getOutput().getText();
+		// the provider bills the call whether or not the answer is usable
+		budget.charge(TokenUsage.of(response, prompt.system() + prompt.user(), text));
 		if (text == null || text.isBlank()) {
 			throw new ModelUnavailableException("The language model returned an empty answer", null);
 		}

@@ -11,6 +11,8 @@ import java.util.regex.Pattern;
 
 import dev.repomind.ingest.GitHubRepoRef;
 import dev.repomind.parse.Identifiers;
+import dev.repomind.limits.ModelBudget;
+import dev.repomind.limits.TokenUsage;
 import dev.repomind.qa.ModelUnavailableException;
 import dev.repomind.repo.Repo;
 import dev.repomind.review.Review.Comment;
@@ -81,6 +83,11 @@ public class ReviewService {
 	}
 
 	public Review review(Repo repo, int number) {
+		return review(repo, number, ModelBudget.UNLIMITED);
+	}
+
+	/** @param budget reserved just before the model call; reviews with nothing to review are free */
+	public Review review(Repo repo, int number, ModelBudget budget) {
 		if (repo.activeJobId() == null) {
 			throw new NotIndexedException(repo);
 		}
@@ -96,7 +103,7 @@ public class ReviewService {
 		}
 		List<SearchHit> context = relatedCode(repo, diffs);
 
-		ModelReply reply = callModel(repo, pr, diffs, context);
+		ModelReply reply = callModel(repo, pr, diffs, context, budget);
 		Draft draft;
 		try {
 			draft = output.convert(extractJson(reply.text()));
@@ -192,7 +199,8 @@ public class ReviewService {
 		return List.copyOf(hits.values());
 	}
 
-	private ModelReply callModel(Repo repo, PullRequest pr, List<FileDiff> diffs, List<SearchHit> context) {
+	private ModelReply callModel(Repo repo, PullRequest pr, List<FileDiff> diffs, List<SearchHit> context,
+			ModelBudget budget) {
 		String system = """
 				You are a senior Java engineer reviewing a pull request to %s.
 				Report problems that matter: bugs, incorrect edge cases, broken error handling, \
@@ -240,6 +248,7 @@ public class ReviewService {
 			}
 		}
 
+		budget.reserve();
 		ChatResponse response;
 		try {
 			response = meters.timer("repomind.review.model.latency")
@@ -251,6 +260,7 @@ public class ReviewService {
 		}
 		String text = response == null || response.getResult() == null ? null
 				: response.getResult().getOutput().getText();
+		budget.charge(TokenUsage.of(response, system + user, text));
 		if (isBlank(text)) {
 			throw new ModelUnavailableException("The language model returned an empty review", null);
 		}
