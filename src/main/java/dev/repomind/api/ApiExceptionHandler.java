@@ -2,6 +2,8 @@ package dev.repomind.api;
 
 import dev.repomind.ingest.IngestService.JobAlreadyRunningException;
 import dev.repomind.qa.ModelUnavailableException;
+import dev.repomind.review.GitHubUnavailableException;
+import dev.repomind.review.PullRequestNotFoundException;
 import dev.repomind.search.NotIndexedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -31,6 +33,16 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(ModelUnavailableException.class)
 	ProblemDetail modelUnavailable(ModelUnavailableException ex) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
+	}
+
+	@ExceptionHandler(PullRequestNotFoundException.class)
+	ProblemDetail pullRequestNotFound(PullRequestNotFoundException ex) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.NOT_FOUND, ex.getMessage());
+	}
+
+	@ExceptionHandler(GitHubUnavailableException.class)
+	ProblemDetail gitHubUnavailable(GitHubUnavailableException ex) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.BAD_GATEWAY, ex.getMessage());
 	}
 
 	@ExceptionHandler(JobAlreadyRunningException.class)

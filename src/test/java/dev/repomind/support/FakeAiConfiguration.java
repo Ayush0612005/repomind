@@ -5,7 +5,7 @@ import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Primary;
 
-/** Replaces model servers with deterministic fakes so integration tests run offline. */
+/** Replaces model servers and GitHub with deterministic fakes so integration tests run offline. */
 @TestConfiguration(proxyBeanMethods = false)
 public class FakeAiConfiguration {
 
@@ -19,6 +19,12 @@ public class FakeAiConfiguration {
 	@Primary
 	ScriptedChatModel scriptedChatModel() {
 		return new ScriptedChatModel();
+	}
+
+	@Bean
+	@Primary
+	FakePullRequests fakePullRequests() {
+		return new FakePullRequests();
 	}
 
 }

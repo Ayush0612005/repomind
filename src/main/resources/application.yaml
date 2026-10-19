@@ -52,3 +52,6 @@ management:
 repomind:
   ingest:
     workdir: ${REPOMIND_WORKDIR:${java.io.tmpdir}/repomind}
+  github:
+    # optional for public repositories (60 requests/hour without it); required for private ones
+    token: ${GITHUB_TOKEN:}
