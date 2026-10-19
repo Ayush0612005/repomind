@@ -28,7 +28,7 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 - [x] **Phase 1 — Ingestion:** clone repo, JavaParser chunking, embeddings into pgvector via async Kafka jobs, status API
 - [x] **Phase 2 — Q&A API:** hybrid retrieval + answers with file/line citations
 - [x] **Phase 3 — Evals:** 30–50 question eval set, accuracy score in CI
-- [ ] **Phase 4 — Cost control:** response + semantic cache, token budgets, provider fallback to Ollama
+- [ ] **Phase 4 — Cost control:** response + semantic cache, token budgets, provider fallback to Ollama *(answer cache done; budgets and fallback next)*
 - [x] **Phase 5 — PR review:** GitHub webhook → diff analysis → review comments
 - [ ] **Phase 6 — MCP server:** expose tools to agents, tested from an MCP client
 
@@ -47,6 +47,21 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 | `POST` | `/api/github/webhook` | GitHub `pull_request` webhook: reviews each new commit automatically |
 
 Errors use RFC 9457 problem details.
+
+### Answer cache
+
+`/ask` checks two cache tiers before spending a model call, both scoped to the repository's
+current index generation, so re-indexing invalidates every cached answer for the old code:
+
+- **Exact (Redis):** the same question up to case, spacing and trailing punctuation. Served before
+  the question is even embedded.
+- **Semantic (pgvector):** an earlier question whose embedding has cosine similarity ≥ 0.97. The
+  threshold is deliberately high, since "how many books can a *premium* member borrow" and "…a
+  *standard* member…" embed very closely but have different answers. Semantic hits report the
+  matched question and similarity in `cache`, so clients can label them.
+
+Failed answers are never cached, and a Redis outage degrades to the semantic tier rather than
+failing requests. Hit and miss counts are exported as `repomind.qa.cache` metrics.
 
 ### GitHub setup
 

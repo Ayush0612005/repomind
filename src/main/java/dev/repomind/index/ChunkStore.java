@@ -109,7 +109,10 @@ public class ChunkStore {
 				});
 	}
 
-	/** Makes {@code jobId} the generation served to queries and drops every other generation. */
+	/**
+	 * Makes {@code jobId} the generation served to queries and drops every other generation, along
+	 * with answers cached from them (Redis entries are keyed by generation and simply expire).
+	 */
 	@Transactional
 	public void activate(UUID repositoryId, UUID jobId) {
 		jdbc.sql("UPDATE repositories SET active_job_id = :job, updated_at = now() WHERE id = :repo")
@@ -117,6 +120,10 @@ public class ChunkStore {
 			.param("repo", repositoryId)
 			.update();
 		jdbc.sql("DELETE FROM code_chunks WHERE repository_id = :repo AND ingest_job_id <> :job")
+			.param("repo", repositoryId)
+			.param("job", jobId)
+			.update();
+		jdbc.sql("DELETE FROM answer_cache WHERE repository_id = :repo AND generation_job_id <> :job")
 			.param("repo", repositoryId)
 			.param("job", jobId)
 			.update();

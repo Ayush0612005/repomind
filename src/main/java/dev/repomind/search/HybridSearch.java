@@ -49,6 +49,15 @@ public class HybridSearch {
 
 	@Transactional(readOnly = true)
 	public List<SearchHit> search(Repo repo, String query, int limit, Mode mode) {
+		return search(repo, query, null, limit, mode);
+	}
+
+	/**
+	 * @param queryVector the query's embedding when the caller already computed it (the answer cache
+	 * does), so the question is not embedded twice; null to embed here
+	 */
+	@Transactional(readOnly = true)
+	public List<SearchHit> search(Repo repo, String query, float[] queryVector, int limit, Mode mode) {
 		if (repo.activeJobId() == null) {
 			throw new NotIndexedException(repo);
 		}
@@ -58,7 +67,9 @@ public class HybridSearch {
 		Timer.Sample sample = Timer.start(meters);
 		try {
 			int candidates = limit * CANDIDATE_FACTOR;
-			List<Long> vector = mode == Mode.KEYWORD ? List.of() : vectorRanking(repo.activeJobId(), query, candidates);
+			List<Long> vector = mode == Mode.KEYWORD ? List.of()
+					: vectorRanking(repo.activeJobId(), queryVector != null ? queryVector : embeddings.embedQuery(query),
+							candidates);
 			List<Long> keyword = mode == Mode.VECTOR ? List.of() : keywordRanking(repo.activeJobId(), query, candidates);
 
 			List<Map.Entry<Long, Double>> fused = ReciprocalRankFusion
@@ -73,7 +84,7 @@ public class HybridSearch {
 		}
 	}
 
-	private List<Long> vectorRanking(UUID jobId, String query, int k) {
+	private List<Long> vectorRanking(UUID jobId, float[] queryVector, int k) {
 		// The HNSW index spans every repository; with a selective filter a plain index scan can stop
 		// with fewer than k matches. pgvector 0.8's iterative scan keeps walking the graph until the
 		// filter is satisfied. relaxed_order may return neighbours slightly out of order, so the
@@ -89,7 +100,7 @@ public class HybridSearch {
 				)
 				SELECT id FROM nearest ORDER BY distance, id
 				""")
-			.param("vector", Vectors.toLiteral(embeddings.embedQuery(query)))
+			.param("vector", Vectors.toLiteral(queryVector))
 			.param("job", jobId)
 			.param("k", k)
 			.query(Long.class)

@@ -5,6 +5,12 @@ spring:
     url: ${DB_URL:jdbc:postgresql://localhost:5432/repomind}
     username: ${DB_USER:repomind}
     password: ${DB_PASSWORD:repomind}
+  data:
+    redis:
+      url: ${REDIS_URL:redis://localhost:6379}
+      # the cache is an optimisation: fail fast and answer without it rather than wait on Redis
+      timeout: 500ms
+      connect-timeout: 1s
   kafka:
     bootstrap-servers: ${KAFKA_BOOTSTRAP:localhost:9092}
     consumer:

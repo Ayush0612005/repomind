@@ -1,9 +1,14 @@
 package dev.repomind.qa;
 
 import java.util.List;
+import java.util.Locale;
+import java.util.Optional;
 
+import dev.repomind.index.EmbeddingService;
+import dev.repomind.qa.cache.AnswerCache;
 import dev.repomind.repo.Repo;
 import dev.repomind.search.HybridSearch;
+import dev.repomind.search.NotIndexedException;
 import dev.repomind.search.SearchHit;
 import io.micrometer.core.instrument.MeterRegistry;
 import io.micrometer.core.instrument.Timer;
@@ -16,7 +21,10 @@ import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
 
-/** Retrieval-augmented answers: hybrid search → grounded prompt → chat model → cited answer. */
+/**
+ * Retrieval-augmented answers: answer cache → hybrid search → grounded prompt → chat model → cited
+ * answer, which is then cached.
+ */
 @Service
 public class AnswerService {
 
@@ -26,25 +34,64 @@ public class AnswerService {
 
 	private final HybridSearch search;
 
+	private final EmbeddingService embeddings;
+
+	private final AnswerCache cache;
+
 	private final ChatModel chat;
 
 	private final QaProperties properties;
 
 	private final MeterRegistry meters;
 
-	public AnswerService(HybridSearch search, ChatModel chat, QaProperties properties, MeterRegistry meters) {
+	public AnswerService(HybridSearch search, EmbeddingService embeddings, AnswerCache cache, ChatModel chat,
+			QaProperties properties, MeterRegistry meters) {
 		this.search = search;
+		this.embeddings = embeddings;
+		this.cache = cache;
 		this.chat = chat;
 		this.properties = properties;
 		this.meters = meters;
 	}
 
 	public Answer ask(Repo repo, String question) {
+		if (repo.activeJobId() == null) {
+			throw new NotIndexedException(repo);
+		}
+		if (question == null || question.isBlank()) {
+			throw new IllegalArgumentException("Question must not be blank");
+		}
 		long start = System.nanoTime();
-		List<SearchHit> hits = search.search(repo, question, properties.retrieveLimit(), HybridSearch.Mode.HYBRID);
+
+		// cheapest first: an exact repeat needs neither an embedding nor a model call
+		Optional<Answer> cached = cache.exact(repo, question);
+		if (cached.isPresent()) {
+			return served(cached.get(), start);
+		}
+		float[] queryVector = embeddings.embedQuery(question);
+		cached = cache.semantic(repo, question, queryVector);
+		if (cached.isPresent()) {
+			return served(cached.get(), start);
+		}
+		meters.counter("repomind.qa.cache", "result", "miss").increment();
+
+		Answer answer = generate(repo, question, queryVector, start);
+		cache.store(repo, question, queryVector, answer);
+		return answer;
+	}
+
+	private Answer served(Answer cached, long start) {
+		meters.counter("repomind.qa.cache", "result", cached.cache().status().name().toLowerCase(Locale.ROOT))
+			.increment();
+		return cached.withCache(cached.cache(), elapsedMs(start));
+	}
+
+	private Answer generate(Repo repo, String question, float[] queryVector, long start) {
+		List<SearchHit> hits = search.search(repo, question, queryVector, properties.retrieveLimit(),
+				HybridSearch.Mode.HYBRID);
 		if (hits.isEmpty()) {
 			// nothing to ground an answer in: skip the model call rather than invite a guess
-			return new Answer(NO_SOURCES, List.of(), List.of(), null, elapsedMs(start));
+			return new Answer(NO_SOURCES, List.of(), List.of(), null, elapsedMs(start), Answer.Cache.MISS);
 		}
 		GroundedPrompt prompt = GroundedPrompt.build(repo.fullName(), question, hits, properties.maxContextTokens());
 
@@ -67,7 +114,8 @@ public class AnswerService {
 			throw new ModelUnavailableException("The language model returned an empty answer", null);
 		}
 		String model = response.getMetadata() == null ? null : response.getMetadata().getModel();
-		return new Answer(text.strip(), prompt.citedIn(text), prompt.sources(), blankToNull(model), elapsedMs(start));
+		return new Answer(text.strip(), prompt.citedIn(text), prompt.sources(), blankToNull(model), elapsedMs(start),
+				Answer.Cache.MISS);
 	}
 
 	private static long elapsedMs(long startNanos) {

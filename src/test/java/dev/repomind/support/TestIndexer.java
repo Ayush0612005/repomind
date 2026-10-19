@@ -38,18 +38,23 @@ public class TestIndexer {
 	public Repo index(String namePrefix, String... pathsAndSources) {
 		String name = namePrefix + "-" + UUID.randomUUID();
 		Repo created = repos.upsert("acme", name, "https://github.com/acme/" + name + ".git");
-		IngestJob job = jobs.create(created.id());
+		return reindex(created, pathsAndSources);
+	}
+
+	/** Builds and activates a new generation for an existing repository, as a re-index would. */
+	public Repo reindex(Repo repo, String... pathsAndSources) {
+		IngestJob job = jobs.create(repo.id());
 		for (int i = 0; i < pathsAndSources.length; i += 2) {
-			store.insert(created.id(), job.id(), chunker.chunk(pathsAndSources[i], pathsAndSources[i + 1]).chunks());
+			store.insert(repo.id(), job.id(), chunker.chunk(pathsAndSources[i], pathsAndSources[i + 1]).chunks());
 		}
 		List<ChunkStore.PendingChunk> pending;
 		while (!(pending = store.findUnembedded(job.id(), 32)).isEmpty()) {
 			store.saveEmbeddings(pending.stream().map(ChunkStore.PendingChunk::id).toList(),
 					embeddings.embedDocuments(pending.stream().map(ChunkStore.PendingChunk::text).toList()));
 		}
-		store.activate(created.id(), job.id());
+		store.activate(repo.id(), job.id());
 		jobs.transition(job.id(), JobStatus.COMPLETED);
-		return repos.findById(created.id()).orElseThrow();
+		return repos.findById(repo.id()).orElseThrow();
 	}
 
 	/** A small petclinic-like codebase shared by the retrieval and Q&A tests. */

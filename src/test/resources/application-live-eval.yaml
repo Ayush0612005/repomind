@@ -24,3 +24,6 @@ repomind:
     max-context-tokens: 4000
   github:
     webhook-secret: unused-in-live-eval
+  # every question must reach the model for the eval to measure it
+  cache:
+    enabled: false
