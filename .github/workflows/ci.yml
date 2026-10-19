@@ -1,0 +1,51 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  verify:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '25'
+          cache: maven
+
+      # unit tests, then integration tests and the retrieval eval against Testcontainers
+      # (Postgres + pgvector, Kafka); models are faked, so no API keys are needed
+      - name: Build and test
+        run: ./mvnw -B verify
+
+      - name: Publish retrieval eval to the job summary
+        if: always()
+        run: |
+          if [ -f target/eval/retrieval.md ]; then
+            cat target/eval/retrieval.md >> "$GITHUB_STEP_SUMMARY"
+          else
+            echo "Retrieval eval did not run." >> "$GITHUB_STEP_SUMMARY"
+          fi
+
+      - name: Upload test and eval reports
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: reports
+          path: |
+            target/surefire-reports
+            target/failsafe-reports
+            target/eval
+          if-no-files-found: ignore

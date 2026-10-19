@@ -27,7 +27,7 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 
 - [x] **Phase 1 — Ingestion:** clone repo, JavaParser chunking, embeddings into pgvector via async Kafka jobs, status API
 - [x] **Phase 2 — Q&A API:** hybrid retrieval + answers with file/line citations
-- [ ] **Phase 3 — Evals:** 30–50 question eval set, accuracy score in CI
+- [ ] **Phase 3 — Evals:** 30–50 question eval set, accuracy score in CI *(retrieval eval in CI done; answer-quality eval with real models next)*
 - [ ] **Phase 4 — Cost control:** response + semantic cache, token budgets, provider fallback to Ollama
 - [x] **Phase 5 — PR review:** GitHub webhook → diff analysis → review comments
 - [ ] **Phase 6 — MCP server:** expose tools to agents, tested from an MCP client
@@ -56,6 +56,25 @@ Errors use RFC 9457 problem details.
   content type `application/json`, this secret, and the *Pull requests* event. Deliveries are
   verified with `X-Hub-Signature-256`, and each commit is reviewed at most once, so redeliveries
   are harmless. Reviews are posted as comments; RepoMind never approves or blocks a merge.
+
+## Evaluation
+
+`RetrievalEvalIT` ingests a fixed fixture codebase (a 23-file library-management service in
+`src/test/resources/eval/library`) through the real pipeline and asks the 40 questions in
+`src/test/resources/eval/questions.json`, each labelled with the code that answers it. It reports
+recall@k and MRR per search mode to `target/eval/retrieval.md` (and the CI job summary), and fails
+the build if any mode drops below its recorded baseline.
+
+Current CI numbers:
+
+| Mode | Recall@5 | MRR@10 |
+|---|---|---|
+| Hybrid | 75.0% | 0.510 |
+| Keyword | 75.0% | 0.580 |
+| Vector | 62.5% | 0.475 |
+
+CI runs offline with a deterministic hashing embedder, so these numbers gate regressions in
+chunking, indexing, keyword search and fusion rather than measuring a real embedding model.
 
 ## Running locally
 
