@@ -28,7 +28,7 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 - [x] **Phase 1 — Ingestion:** clone repo, JavaParser chunking, embeddings into pgvector via async Kafka jobs, status API
 - [x] **Phase 2 — Q&A API:** hybrid retrieval + answers with file/line citations
 - [x] **Phase 3 — Evals:** 30–50 question eval set, accuracy score in CI
-- [ ] **Phase 4 — Cost control:** response + semantic cache, token budgets, provider fallback to Ollama *(answer cache, rate limits and token budgets done; provider fallback next)*
+- [x] **Phase 4 — Cost control:** response + semantic cache, token budgets, provider fallback to Ollama
 - [x] **Phase 5 — PR review:** GitHub webhook → diff analysis → review comments
 - [ ] **Phase 6 — MCP server:** expose tools to agents, tested from an MCP client
 
@@ -79,6 +79,21 @@ anonymous policy (remove it to require keys).
   `X-Token-Budget-Remaining`; an exhausted budget is `429` with `Retry-After` set to midnight UTC.
 - If Redis is unavailable, limits fail open (and count `repomind.limits.errors`) rather than taking
   the API down. GitHub webhooks are exempt: they are authenticated by signature.
+
+### Provider fallback
+
+Claude and the local Ollama model are both configured, and every model call goes through
+`ChatGateway`, which tries them in `repomind.chat.order` (Claude first) and moves on when one fails.
+Each provider has a Resilience4j circuit breaker: after repeated failures (50% of the last 10
+calls, at least 4) the provider is skipped outright for 30 s, so requests stop paying its timeout
+before falling back, and then a single probe call tests whether it has recovered. Spring AI's own
+retries are cut from 10 attempts to 2 so a failure surfaces in seconds, not minutes. Calls,
+fallbacks and skips are counted in `repomind.chat.calls`, and each breaker's state is the
+`repomind.chat.circuit.state` gauge.
+
+`ProviderFailoverLiveIT` (opt-in, like the live eval) runs the production setup with Claude
+unreachable: the first four questions fall back to Ollama after a fast failure, the circuit opens,
+and later questions skip Claude entirely. To run on Ollama alone, set `SPRING_AI_MODEL_CHAT=ollama`.
 
 ### GitHub setup
 

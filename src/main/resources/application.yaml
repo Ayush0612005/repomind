@@ -25,9 +25,18 @@ spring:
       ack-mode: record
   ai:
     model:
-      # anthropic (needs ANTHROPIC_API_KEY) or ollama (local GPU, no key)
-      chat: ${REPOMIND_CHAT_PROVIDER:anthropic}
+      # spring.ai.model.chat is deliberately unset, so both Claude and Ollama are configured and
+      # ChatGateway falls back from one to the other (order: repomind.chat.order). To run on
+      # Ollama alone, without an API key, set SPRING_AI_MODEL_CHAT=ollama.
       embedding: ollama
+    retry:
+      # Spring AI retries a failed call up to 10 times with backoff by default, which would make
+      # falling back take minutes; retry once quickly and let ChatGateway move on
+      max-attempts: 2
+      backoff:
+        initial-interval: 500ms
+        multiplier: 2
+        max-interval: 2s
     anthropic:
       api-key: ${ANTHROPIC_API_KEY:}
       chat:
@@ -56,6 +65,13 @@ management:
         include: health,info,metrics
 
 repomind:
+  chat:
+    order: ${REPOMIND_CHAT_ORDER:anthropic,ollama}
+    circuit-breaker:
+      failure-rate-threshold: 50
+      sliding-window-size: 10
+      minimum-calls: 4
+      open-for: 30s
   ingest:
     workdir: ${REPOMIND_WORKDIR:${java.io.tmpdir}/repomind}
   github:

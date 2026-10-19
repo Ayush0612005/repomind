@@ -1,0 +1,24 @@
+# ProviderFailoverLiveIT: the production provider setup (Claude first, Ollama as fallback, no
+# spring.ai.model.chat pinned) with Claude made unreachable, so every call must fall back.
+spring:
+  ai:
+    model:
+      embedding: ollama
+    anthropic:
+      # nothing listens on port 1: Claude fails fast with "connection refused", no external call
+      base-url: http://localhost:1
+      api-key: not-a-real-key
+    ollama:
+      init:
+        pull-model-strategy: never
+      chat:
+        options:
+          num-ctx: 8192
+
+repomind:
+  qa:
+    max-context-tokens: 4000
+  cache:
+    enabled: false
+  github:
+    webhook-secret: unused-in-live-eval

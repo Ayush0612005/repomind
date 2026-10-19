@@ -24,3 +24,7 @@ repomind:
         key-sha256: 2df5dd5ab7659b56f8f02277b8d98bf268518a9dfa0efdd11fb35b7581d90dfa
         requests-per-minute: 1000
         daily-tokens: 1
+  chat:
+    circuit-breaker:
+      # tests fail the scripted model on purpose; a breaker opened by one test must not fail the next
+      minimum-calls: 1000

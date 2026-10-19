@@ -9,6 +9,7 @@ import java.util.Map;
 import java.util.regex.Matcher;
 import java.util.regex.Pattern;
 
+import dev.repomind.chat.ChatGateway;
 import dev.repomind.ingest.GitHubRepoRef;
 import dev.repomind.parse.Identifiers;
 import dev.repomind.limits.ModelBudget;
@@ -26,7 +27,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.ai.converter.BeanOutputConverter;
@@ -65,7 +65,7 @@ public class ReviewService {
 
 	private final HybridSearch search;
 
-	private final ChatModel chat;
+	private final ChatGateway chat;
 
 	private final ReviewProperties properties;
 
@@ -73,7 +73,7 @@ public class ReviewService {
 
 	private final BeanOutputConverter<Draft> output = new BeanOutputConverter<>(Draft.class);
 
-	public ReviewService(PullRequestSource pullRequests, HybridSearch search, ChatModel chat,
+	public ReviewService(PullRequestSource pullRequests, HybridSearch search, ChatGateway chat,
 			ReviewProperties properties, MeterRegistry meters) {
 		this.pullRequests = pullRequests;
 		this.search = search;
@@ -254,9 +254,9 @@ public class ReviewService {
 			response = meters.timer("repomind.review.model.latency")
 				.record(() -> chat.call(new Prompt(List.of(new SystemMessage(system), new UserMessage(user.toString())))));
 		}
-		catch (RuntimeException ex) {
+		catch (ModelUnavailableException ex) {
 			meters.counter("repomind.review.failures", "reason", "unavailable").increment();
-			throw new ModelUnavailableException("The language model is unavailable: " + ex.getMessage(), ex);
+			throw ex;
 		}
 		String text = response == null || response.getResult() == null ? null
 				: response.getResult().getOutput().getText();

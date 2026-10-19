@@ -4,6 +4,7 @@ import java.util.List;
 import java.util.Locale;
 import java.util.Optional;
 
+import dev.repomind.chat.ChatGateway;
 import dev.repomind.index.EmbeddingService;
 import dev.repomind.limits.ModelBudget;
 import dev.repomind.limits.TokenUsage;
@@ -18,7 +19,6 @@ import org.slf4j.Logger;
 import org.slf4j.LoggerFactory;
 import org.springframework.ai.chat.messages.SystemMessage;
 import org.springframework.ai.chat.messages.UserMessage;
-import org.springframework.ai.chat.model.ChatModel;
 import org.springframework.ai.chat.model.ChatResponse;
 import org.springframework.ai.chat.prompt.Prompt;
 import org.springframework.stereotype.Service;
@@ -40,13 +40,13 @@ public class AnswerService {
 
 	private final AnswerCache cache;
 
-	private final ChatModel chat;
+	private final ChatGateway chat;
 
 	private final QaProperties properties;
 
 	private final MeterRegistry meters;
 
-	public AnswerService(HybridSearch search, EmbeddingService embeddings, AnswerCache cache, ChatModel chat,
+	public AnswerService(HybridSearch search, EmbeddingService embeddings, AnswerCache cache, ChatGateway chat,
 			QaProperties properties, MeterRegistry meters) {
 		this.search = search;
 		this.embeddings = embeddings;
@@ -111,10 +111,10 @@ public class AnswerService {
 		try {
 			response = chat.call(new Prompt(List.of(new SystemMessage(prompt.system()), new UserMessage(prompt.user()))));
 		}
-		catch (RuntimeException ex) {
+		catch (ModelUnavailableException ex) {
 			meters.counter("repomind.qa.failures").increment();
-			log.warn("Chat model call failed for {}: {}", repo.fullName(), ex.getMessage());
-			throw new ModelUnavailableException("The language model is unavailable: " + ex.getMessage(), ex);
+			log.warn("No chat provider could answer for {}: {}", repo.fullName(), ex.getMessage());
+			throw ex;
 		}
 		finally {
 			sample.stop(meters.timer("repomind.qa.model.latency"));
