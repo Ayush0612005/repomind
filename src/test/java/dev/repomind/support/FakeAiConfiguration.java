@@ -15,4 +15,10 @@ public class FakeAiConfiguration {
 		return new HashingEmbeddingModel(768);
 	}
 
+	@Bean
+	@Primary
+	ScriptedChatModel scriptedChatModel() {
+		return new ScriptedChatModel();
+	}
+
 }

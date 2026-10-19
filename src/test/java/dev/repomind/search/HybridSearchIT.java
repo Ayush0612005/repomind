@@ -5,16 +5,11 @@ import static org.assertj.core.api.Assertions.assertThat;
 import java.util.List;
 import java.util.UUID;
 
-import dev.repomind.index.ChunkStore;
-import dev.repomind.index.EmbeddingService;
-import dev.repomind.ingest.IngestJob;
-import dev.repomind.ingest.IngestJobDao;
-import dev.repomind.ingest.JobStatus;
-import dev.repomind.parse.JavaChunker;
 import dev.repomind.repo.Repo;
 import dev.repomind.repo.RepoDao;
 import dev.repomind.search.HybridSearch.Mode;
 import dev.repomind.support.IntegrationTest;
+import dev.repomind.support.TestIndexer;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,54 +20,14 @@ import org.springframework.test.web.servlet.assertj.MockMvcTester;
 @IntegrationTest
 class HybridSearchIT {
 
-	private static final String OWNER_REPOSITORY = """
-			package org.acme.owner;
-
-			interface OwnerRepository {
-				Owner findById(int id);
-				List<Owner> findByLastName(String lastName);
-			}
-			""";
-
-	private static final String PET_VALIDATOR = """
-			package org.acme.pet;
-
-			class PetValidator {
-				void validate(Pet pet) {
-					if (pet.getBirthDate() == null) {
-						throw new IllegalArgumentException("birth date is required");
-					}
-				}
-			}
-			""";
-
-	private static final String VET_CONTROLLER = """
-			package org.acme.vet;
-
-			class VetController {
-				String showVetList(int page) {
-					if (page < 1) {
-						throw new IllegalArgumentException("page must be positive");
-					}
-					return "vets/vetList";
-				}
-			}
-			""";
-
 	@Autowired
 	HybridSearch search;
 
 	@Autowired
-	ChunkStore store;
-
-	@Autowired
-	EmbeddingService embeddings;
+	TestIndexer indexer;
 
 	@Autowired
 	RepoDao repos;
-
-	@Autowired
-	IngestJobDao jobs;
 
 	@Autowired
 	JdbcClient jdbc;
@@ -80,14 +35,11 @@ class HybridSearchIT {
 	@Autowired
 	MockMvcTester mvc;
 
-	private final JavaChunker chunker = new JavaChunker();
-
 	private Repo repo;
 
 	@BeforeEach
 	void indexRepository() {
-		repo = indexed("petclinic", "OwnerRepository.java", OWNER_REPOSITORY, "PetValidator.java", PET_VALIDATOR,
-				"VetController.java", VET_CONTROLLER);
+		repo = indexer.index("petclinic", TestIndexer.PETCLINIC);
 	}
 
 	@Test
@@ -121,7 +73,7 @@ class HybridSearchIT {
 
 	@Test
 	void onlySearchesTheRepositorysActiveGeneration() {
-		Repo other = indexed("other", "OwnerRepository.java", OWNER_REPOSITORY);
+		Repo other = indexer.index("other", TestIndexer.PETCLINIC[0], TestIndexer.PETCLINIC[1]);
 
 		List<Long> ids = search.search(repo, "owner find by last name", 50, Mode.HYBRID)
 			.stream()
@@ -153,24 +105,6 @@ class HybridSearchIT {
 
 		Repo unindexed = repos.upsert("acme", "new-" + UUID.randomUUID(), "https://github.com/acme/new.git");
 		assertThat(mvc.get().uri("/api/repos/{id}/search?q=x", unindexed.id())).hasStatus(HttpStatus.CONFLICT);
-	}
-
-	/** Chunks, embeds and activates the given {@code path, source} pairs as one generation. */
-	private Repo indexed(String prefix, String... files) {
-		String name = prefix + "-" + UUID.randomUUID();
-		Repo created = repos.upsert("acme", name, "https://github.com/acme/" + name + ".git");
-		IngestJob job = jobs.create(created.id());
-		for (int i = 0; i < files.length; i += 2) {
-			store.insert(created.id(), job.id(), chunker.chunk(files[i], files[i + 1]).chunks());
-		}
-		List<ChunkStore.PendingChunk> pending;
-		while (!(pending = store.findUnembedded(job.id(), 32)).isEmpty()) {
-			store.saveEmbeddings(pending.stream().map(ChunkStore.PendingChunk::id).toList(),
-					embeddings.embedDocuments(pending.stream().map(ChunkStore.PendingChunk::text).toList()));
-		}
-		store.activate(created.id(), job.id());
-		jobs.transition(job.id(), JobStatus.COMPLETED);
-		return repos.findById(created.id()).orElseThrow();
 	}
 
 }

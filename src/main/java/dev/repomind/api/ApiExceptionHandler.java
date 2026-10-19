@@ -1,6 +1,7 @@
 package dev.repomind.api;
 
 import dev.repomind.ingest.IngestService.JobAlreadyRunningException;
+import dev.repomind.qa.ModelUnavailableException;
 import dev.repomind.search.NotIndexedException;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.ProblemDetail;
@@ -25,6 +26,11 @@ public class ApiExceptionHandler extends ResponseEntityExceptionHandler {
 	@ExceptionHandler(NotIndexedException.class)
 	ProblemDetail notIndexed(NotIndexedException ex) {
 		return ProblemDetail.forStatusAndDetail(HttpStatus.CONFLICT, ex.getMessage());
+	}
+
+	@ExceptionHandler(ModelUnavailableException.class)
+	ProblemDetail modelUnavailable(ModelUnavailableException ex) {
+		return ProblemDetail.forStatusAndDetail(HttpStatus.SERVICE_UNAVAILABLE, ex.getMessage());
 	}
 
 	@ExceptionHandler(JobAlreadyRunningException.class)
