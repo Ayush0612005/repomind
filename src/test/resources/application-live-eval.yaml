@@ -1,0 +1,26 @@
+# Live eval (LiveEvalIT): real embedding and chat models instead of the test fakes.
+#   docker compose up -d ollama
+#   docker exec repomind-ollama-1 ollama pull nomic-embed-text
+#   docker exec repomind-ollama-1 ollama pull qwen2.5-coder:7b
+#   REPOMIND_EVAL_LIVE=true mvn verify -Dtest=none -Dsurefire.failIfNoSpecifiedTests=false -Dit.test=LiveEvalIT
+# Set REPOMIND_CHAT_PROVIDER=anthropic and ANTHROPIC_API_KEY to evaluate Claude instead.
+spring:
+  ai:
+    model:
+      embedding: ollama
+      chat: ${REPOMIND_CHAT_PROVIDER:ollama}
+    ollama:
+      init:
+        # pull ahead of time (above); a multi-gigabyte download should not hide inside a test run
+        pull-model-strategy: never
+      chat:
+        options:
+          # fits the 4,000-token code budget below plus prompt and answer, and keeps a 7B model's
+          # KV cache within a 6 GB laptop GPU
+          num-ctx: 8192
+
+repomind:
+  qa:
+    max-context-tokens: 4000
+  github:
+    webhook-secret: unused-in-live-eval

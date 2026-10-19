@@ -4,6 +4,7 @@ import java.io.IOException;
 import java.io.InputStream;
 import java.io.UncheckedIOException;
 import java.util.List;
+import java.util.Locale;
 import java.util.Map;
 
 import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
@@ -12,13 +13,31 @@ import tools.jackson.databind.json.JsonMapper;
 
 /** The question set in {@code src/test/resources/eval/questions.json}. */
 @JsonIgnoreProperties(ignoreUnknown = true)
-public record EvalSet(String description, List<Question> questions, Map<String, Thresholds> thresholds) {
+public record EvalSet(String description, List<Question> questions, Map<String, Thresholds> thresholds,
+		List<Unanswerable> unanswerable) {
 
 	/** Minimum scores per search mode; the build fails below them. */
 	public record Thresholds(double recallAt5, double mrr) {
 	}
 
-	public record Question(String id, String category, String question, List<String> expect) {
+	/** About something the fixture does not contain: a correct answer says the code does not show it. */
+	public record Unanswerable(String id, String question) {
+	}
+
+	/**
+	 * @param facts details a correct answer states; each inner list holds acceptable spellings,
+	 * matched case-insensitively
+	 */
+	public record Question(String id, String category, String question, List<String> expect,
+			List<List<String>> facts) {
+
+		/** How many of this question's facts the answer states. */
+		public int factsStated(String answer) {
+			String text = answer.toLowerCase(Locale.ROOT);
+			return (int) facts.stream()
+				.filter(spellings -> spellings.stream().anyMatch(s -> text.contains(s.toLowerCase(Locale.ROOT))))
+				.count();
+		}
 
 		public List<Target> targets() {
 			return expect.stream().map(Target::parse).toList();

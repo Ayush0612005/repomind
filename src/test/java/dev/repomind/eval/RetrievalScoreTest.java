@@ -45,7 +45,7 @@ class RetrievalScoreTest {
 
 	@Test
 	void ranksTheFirstHitMatchingAnyExpectedTarget() {
-		Question q = new Question("q", "c", "?", List.of("A.java#a", "B.java"));
+		Question q = new Question("q", "c", "?", List.of("A.java#a", "B.java"), List.of(List.of("978", "isbn-13"), List.of("979")));
 		List<SearchHit> hits = List.of(hit("C.java", "C#c()"), hit("B.java", "B#b()"), hit("A.java", "A#a()"));
 
 		assertThat(q.firstRelevantRank(hits)).isEqualTo(2);
