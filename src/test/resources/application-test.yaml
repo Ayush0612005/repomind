@@ -6,3 +6,6 @@ spring:
     ollama:
       init:
         pull-model-strategy: never
+repomind:
+  github:
+    webhook-secret: test-webhook-secret

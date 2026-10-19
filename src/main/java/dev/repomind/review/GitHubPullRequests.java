@@ -1,5 +1,6 @@
 package dev.repomind.review;
 
+import java.nio.charset.StandardCharsets;
 import java.util.ArrayList;
 import java.util.List;
 
@@ -14,9 +15,9 @@ import org.springframework.util.StringUtils;
 import org.springframework.web.client.ResourceAccessException;
 import org.springframework.web.client.RestClient;
 
-/** Reads pull requests through the GitHub REST API. */
+/** Reads pull requests and publishes reviews through the GitHub REST API. */
 @Component
-public class GitHubPullRequests implements PullRequestSource {
+public class GitHubPullRequests implements PullRequestSource, ReviewPublisher {
 
 	static final int PAGE_SIZE = 100;
 
@@ -36,7 +37,22 @@ public class GitHubPullRequests implements PullRequestSource {
 	record FileDto(String filename, String status, int additions, int deletions, String patch) {
 	}
 
+	record CreateReviewDto(@JsonProperty("commit_id") String commitId, String event, String body,
+			List<ReviewCommentDto> comments) {
+	}
+
+	record ReviewCommentDto(String path, int line, String side, String body) {
+	}
+
+	@JsonIgnoreProperties(ignoreUnknown = true)
+	record ReviewDto(long id, @JsonProperty("html_url") String htmlUrl) {
+	}
+
+	private static final int MAX_ERROR_BODY = 500;
+
 	private final RestClient http;
+
+	private final boolean authenticated;
 
 	@Autowired
 	public GitHubPullRequests(GitHubProperties properties) {
@@ -54,13 +70,42 @@ public class GitHubPullRequests implements PullRequestSource {
 					throw new PullRequestNotFoundException("GitHub has no " + path
 							+ " (private repositories need repomind.github.token)");
 				}
-				throw new GitHubUnavailableException(
-						"GitHub returned " + response.getStatusCode().value() + " for " + path, null);
+				// GitHub explains 422s (e.g. a line outside the diff) in the body; keep it for the job's error
+				String detail = new String(response.getBody().readNBytes(MAX_ERROR_BODY), StandardCharsets.UTF_8);
+				throw new GitHubUnavailableException("GitHub returned " + response.getStatusCode().value() + " for "
+						+ path + (detail.isBlank() ? "" : ": " + detail.strip()), null);
 			});
-		if (StringUtils.hasText(properties.token())) {
+		this.authenticated = StringUtils.hasText(properties.token());
+		if (authenticated) {
 			builder.defaultHeader(HttpHeaders.AUTHORIZATION, "Bearer " + properties.token());
 		}
 		this.http = builder.build();
+	}
+
+	/**
+	 * Creates a submitted review with inline comments. The event is always COMMENT: an automated
+	 * reviewer should inform the humans, not approve or block the merge on their behalf.
+	 */
+	@Override
+	public String publish(GitHubRepoRef repo, Review review) {
+		if (!authenticated) {
+			throw new GitHubUnavailableException("Posting reviews requires repomind.github.token (GITHUB_TOKEN)", null);
+		}
+		var comments = review.comments()
+			.stream()
+			.map(c -> new ReviewCommentDto(c.path(), c.line(), "RIGHT", ReviewMarkdown.comment(c)))
+			.toList();
+		try {
+			ReviewDto posted = http.post()
+				.uri("/repos/{owner}/{name}/pulls/{number}/reviews", repo.owner(), repo.name(), review.pullRequest())
+				.body(new CreateReviewDto(review.headSha(), "COMMENT", ReviewMarkdown.body(review), comments))
+				.retrieve()
+				.body(ReviewDto.class);
+			return posted == null ? null : posted.htmlUrl();
+		}
+		catch (ResourceAccessException ex) {
+			throw new GitHubUnavailableException("GitHub is unreachable: " + ex.getMessage(), ex);
+		}
 	}
 
 	@Override
