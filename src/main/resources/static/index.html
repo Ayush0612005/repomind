@@ -277,7 +277,7 @@ $("ask-form").addEventListener("submit", async (event) => {
   if (!state.repo) return;
   const button = $("ask-btn");
   busy(button, true, "Thinking…");
-  $("answer").innerHTML = '<p class="meta"><span class="spinner"></span>Retrieving code and asking the model. A cache miss on the free CPU model can take up to a minute.</p>';
+  $("answer").innerHTML = '<p class="meta"><span class="spinner"></span>Retrieving code and asking the model. On the free CPU demo a new question can take a few minutes; the suggested questions are cached and answer instantly.</p>';
   try {
     const { body: a, headers } = await api(`/api/repos/${state.repo.id}/ask`, {
       method: "POST", body: JSON.stringify({ question: $("question").value })

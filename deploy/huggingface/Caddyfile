@@ -1,0 +1,24 @@
+{
+	admin off
+	auto_https off
+}
+
+# Hugging Face terminates HTTPS and forwards to port 7860
+:7860 {
+	encode zstd gzip
+
+	# metrics and health stay internal; Prometheus scrapes the app directly
+	handle /actuator* {
+		respond 404
+	}
+
+	handle /grafana* {
+		reverse_proxy 127.0.0.1:3000
+	}
+
+	handle {
+		reverse_proxy 127.0.0.1:8080 {
+			flush_interval -1
+		}
+	}
+}

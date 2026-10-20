@@ -8,6 +8,18 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 
 > All six roadmap phases are complete; see the roadmap and evaluation results below.
 
+![RepoMind demo: asking a question, searching code, exploring a class, and the operations dashboard](docs/images/demo.gif)
+
+| Cited answers | Hybrid search | Class outlines |
+|---|---|---|
+| ![Answer with numbered citations linking to GitHub lines](docs/images/ui-ask.png) | ![Search hits with vector and keyword ranks](docs/images/ui-search.png) | ![Class skeleton, members and usages](docs/images/ui-explore.png) |
+
+<details><summary>Operations dashboard (Grafana)</summary>
+
+![Grafana dashboard: traffic, latency, cache hit rate, model calls, circuit breakers, tokens](docs/images/dashboard.png)
+
+</details>
+
 ## Tech stack
 
 | Area | Choice |
