@@ -232,13 +232,39 @@ tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-net
 which needs no account or open ports:
 
 ```powershell
-powershell -ExecutionPolicy Bypass -File deploy\live-demo.ps1        # prints https://<random>.trycloudflare.com
-powershell -ExecutionPolicy Bypass -File deploy\live-demo.ps1 -Stop  # indexed data is kept
+powershell -ExecutionPolicy Bypass -File deploy\live-demo.ps1          # prints https://<random>.trycloudflare.com
+powershell -ExecutionPolicy Bypass -File deploy\live-demo.ps1 -Stop    # stop; data is kept
+powershell -ExecutionPolicy Bypass -File deploy\live-demo.ps1 -Remove  # delete everything (~21 GB)
 ```
 
-The link changes on every start and works while the PC is on. It needs `deploy/.env` (from
-`deploy/.env.example`, with `SITE_ADDRESS=:80` and `HTTP_PORT=8088`) and the demo repositories
-indexed once (`deploy/bootstrap-demo.sh`).
+The link changes on every start and works while the PC is on. Starting works from nothing:
+Docker downloads the images, the database is restored from `deploy/snapshot/repomind.dump` (the
+two indexed demo repositories and their cached answers, 4 MB), and the models are pulled, so the
+first start after `-Remove` downloads about 14 GB. `-Remove` saves the database back to the
+snapshot first, so anything indexed or cached during a demo survives. It needs `deploy/.env` (from
+`deploy/.env.example`, with `SITE_ADDRESS=:80` and `HTTP_PORT=8088`).
+
+#### Give the space back to D:
+
+Docker keeps its data in one disk file that grows but never shrinks, so `-Remove` frees space
+inside it, not on the drive. To shrink the file, quit Docker Desktop, then in PowerShell **as
+administrator**:
+
+```powershell
+wsl --shutdown
+diskpart
+```
+
+and in diskpart (the file is under Docker Desktop's *Settings → Resources → Advanced → Disk image
+location*; this machine keeps it on D:):
+
+```text
+select vdisk file="D:\DockerData\DockerDesktopWSL\disk\docker_data.vhdx"
+attach vdisk readonly
+compact vdisk
+detach vdisk
+exit
+```
 
 ## Running locally
 
