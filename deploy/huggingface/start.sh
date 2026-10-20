@@ -22,10 +22,12 @@ redis-server --bind 127.0.0.1 --save "" --appendonly no --maxmemory 256mb --maxm
 
 log "ollama"
 ollama serve > "$LOGS/ollama.log" 2>&1 &
+services=($!)
 
 log "prometheus"
 prometheus --config.file="$APP/prometheus.yml" --storage.tsdb.path="$HOME/prometheus" \
   --storage.tsdb.retention.time=7d --web.listen-address=127.0.0.1:9090 > "$LOGS/prometheus.log" 2>&1 &
+services+=($!)
 
 log "grafana"
 mkdir -p "$HOME/grafana"
@@ -37,13 +39,16 @@ GF_ANALYTICS_REPORTING_ENABLED=false GF_SECURITY_ADMIN_PASSWORD="${GRAFANA_ADMIN
 GF_SECURITY_ALLOW_EMBEDDING=true \
 GF_DASHBOARDS_DEFAULT_HOME_DASHBOARD_PATH="$APP/grafana/dashboards/repomind.json" \
   grafana server --homepath /opt/grafana > "$LOGS/grafana.log" 2>&1 &
+services+=($!)
 
 log "repomind"
 # shellcheck disable=SC2086
 java $JAVA_OPTS -jar "$APP/app.jar" > "$LOGS/app.log" 2>&1 &
+services+=($!)
 
 log "caddy on :7860"
 caddy run --config "$APP/Caddyfile" --adapter caddyfile > "$LOGS/caddy.log" 2>&1 &
+services+=($!)
 
 # warm the chat model into memory so the first new question doesn't also pay the load time
 ( until curl -sf http://127.0.0.1:11434/api/version > /dev/null; do sleep 2; done
@@ -51,6 +56,7 @@ caddy run --config "$APP/Caddyfile" --adapter caddyfile > "$LOGS/caddy.log" 2>&1
   log "models loaded" ) &
 
 tail -n +1 -F "$LOGS/app.log" &
-wait -n
+# only the services count: the warm-up and log tail above are children too, and finish or never do
+wait -n "${services[@]}" || true
 log "a service exited; stopping so the Space restarts"
 exit 1
