@@ -78,7 +78,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
     <div class="brand">Repo<span>Mind</span></div>
     <div class="tagline">Ask questions about a Java codebase and get answers with file:line citations.</div>
     <nav>
-      <a href="/grafana/" target="_blank" rel="noopener">Live dashboard</a>
+      <a id="dashboard-link" href="/grafana/" target="_blank" rel="noopener">Live dashboard</a>
       <a href="https://github.com/Ayush0612005/repomind" target="_blank" rel="noopener">Source</a>
       <a href="#how">How it works</a>
     </nav>
@@ -86,6 +86,13 @@ details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
 </header>
 
 <main class="wrap">
+  <section class="card hidden" id="demo-banner">
+    <b>Recorded demo.</b> Every answer, search result and class outline here is a real response recorded from
+    RepoMind <span id="demo-recorded"></span>. This static copy can only replay the examples shown as chips, so typing a
+    new question needs the live service: <a href="https://github.com/Ayush0612005/repomind#running-locally" target="_blank" rel="noopener">run it yourself</a>
+    with Docker.
+  </section>
+
   <section class="card">
     <div class="row">
       <div class="grow">
@@ -119,6 +126,7 @@ details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
         <select id="mode" style="width:auto"><option value="HYBRID">Hybrid</option><option value="VECTOR">Vector only</option><option value="KEYWORD">Keyword only</option></select>
         <button type="submit">Search</button>
       </form>
+      <div class="chips" id="search-examples"></div>
       <div id="hits" style="margin-top:12px"></div>
     </div>
 
@@ -127,11 +135,12 @@ details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
         <input id="class-name" class="grow" type="text" placeholder="Class name, e.g. OwnerController" required>
         <button type="submit">Outline</button>
       </form>
+      <div class="chips" id="class-examples"></div>
       <div id="outline" style="margin-top:12px"></div>
     </div>
   </section>
 
-  <section class="card">
+  <section class="card" id="ingest-card">
     <details>
       <summary>Index another repository (requires an API key)</summary>
       <div class="row" style="margin-top:12px">
@@ -162,21 +171,38 @@ details summary { cursor: pointer; color: var(--muted); font-size: 14px; }
 const $ = (id) => document.getElementById(id);
 const state = { repos: [], repo: null };
 
-const SUGGESTIONS = {
-  "spring-projects/spring-petclinic": [
-    "How is a new owner validated before it is saved?",
-    "Where are vets and their specialties loaded?",
-    "How does the app find owners by last name?",
-    "What happens when a pet's birth date is in the future?"
-  ],
-  "Ayush0612005/repomind": [
-    "How does hybrid search merge vector and keyword results?",
-    "How is a review comment prevented from targeting lines outside the diff?",
-    "How does the rate limiter work?",
-    "When does the chat gateway fall back to Ollama?"
-  ]
+// clickable examples per repository; deploy/pages/record.mjs records exactly these for the static demo
+const EXAMPLES = {
+  "spring-projects/spring-petclinic": {
+    questions: [
+      "How is a new owner validated before it is saved?",
+      "Where are vets and their specialties loaded?",
+      "How does the app find owners by last name?",
+      "What happens when a pet's birth date is in the future?"
+    ],
+    searches: ["find owners by last name", "pet birth date validation", "schedule a visit", "findByLastName"],
+    classes: ["OwnerController", "PetValidator", "VetController", "Owner"]
+  },
+  "Ayush0612005/repomind": {
+    questions: [
+      "How does hybrid search merge vector and keyword results?",
+      "How is a review comment prevented from targeting lines outside the diff?",
+      "How does the rate limiter work?",
+      "When does the chat gateway fall back to Ollama?"
+    ],
+    searches: ["reciprocal rank fusion", "token bucket rate limit", "circuit breaker fallback", "verify webhook signature"],
+    classes: ["HybridSearch", "AnswerCache", "ChatGateway", "RateLimiter"]
+  }
 };
-const GENERIC = ["What are the main entry points of this application?", "How is input validated?", "Where is error handling done?"];
+const GENERIC = {
+  questions: ["What are the main entry points of this application?", "How is input validated?", "Where is error handling done?"],
+  searches: [], classes: []
+};
+
+// Served as a static page (GitHub Pages, or ?demo), the UI replays responses recorded from a running
+// RepoMind (deploy/pages/demo-data.json) instead of calling the API.
+const DEMO = location.hostname.endsWith(".github.io") || new URLSearchParams(location.search).has("demo");
+let demoData = null;
 
 function esc(s) {
   return String(s ?? "").replace(/[&<>"']/g, (c) => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c]));
@@ -210,7 +236,39 @@ function locationHtml(location) {
   return url ? `<a href="${esc(url)}" target="_blank" rel="noopener"><code>${esc(location)}</code></a>` : `<code>${esc(location)}</code>`;
 }
 
+const demoKey = (s) => String(s).trim().toLowerCase().replace(/[\s?.!]+$/, "").replace(/\s+/g, " ");
+
+function demoLookup(table, wanted) {
+  const key = Object.keys(table || {}).find((k) => demoKey(k) === demoKey(wanted));
+  if (key === undefined) {
+    throw new Error("This recorded demo can only replay the examples shown as chips. "
+      + "To ask anything else, run RepoMind yourself; see the banner above.");
+  }
+  return table[key];
+}
+
+/** The recorded response for an API call the UI makes, in the shape {@link api} returns. */
+async function demoApi(path, options) {
+  demoData ??= await fetch("demo-data.json").then((res) => {
+    if (!res.ok) throw new Error(`Could not load the recorded demo (${res.status})`);
+    return res.json();
+  });
+  const model = Object.values(Object.values(demoData.answers)[0] || {})[0]?.model;
+  $("demo-recorded").textContent = `${model ? `running ${model} ` : ""}on ${new Date(demoData.recordedAt).toLocaleDateString(undefined, { dateStyle: "long" })}`;
+  const url = new URL(path, location.href);
+  const ok = (body) => ({ body, headers: new Headers(), status: 200 });
+  if (url.pathname === "/api/repos" && !options.method) return ok(demoData.repos);
+  const m = /^\/api\/repos\/([^/]+)\/(ask-jobs|search|classes)(?:\/(.+))?$/.exec(url.pathname);
+  if (m && m[2] === "ask-jobs") return ok(demoLookup(demoData.answers[m[1]], JSON.parse(options.body).question));
+  if (m && m[2] === "search") {
+    return ok(demoLookup(demoData.searches[m[1]], url.searchParams.get("q"))[url.searchParams.get("mode")]);
+  }
+  if (m && m[2] === "classes") return ok(demoLookup(demoData.classes[m[1]], decodeURIComponent(m[3])));
+  throw new Error("Indexing repositories needs the live service; this is a recorded demo.");
+}
+
 async function api(path, options = {}) {
+  if (DEMO) return demoApi(path, options);
   const headers = { "Accept": "application/json", ...(options.headers || {}) };
   if (options.body) headers["Content-Type"] = "application/json";
   const key = localStorage.getItem("repomind.key");
@@ -251,6 +309,15 @@ async function loadRepos(selectId) {
   }
 }
 
+/** Example chips that fill in a form field and submit it. */
+function chips(containerId, values, inputId, formId) {
+  $(containerId).innerHTML = values.map((v) => `<button class="chip" type="button">${esc(v)}</button>`).join("");
+  $(containerId).querySelectorAll(".chip").forEach((chip) => chip.addEventListener("click", () => {
+    $(inputId).value = chip.textContent;
+    $(formId).requestSubmit();
+  }));
+}
+
 function selectRepo() {
   state.repo = state.repos.find((r) => r.id === $("repo").value) || null;
   const r = state.repo;
@@ -260,12 +327,11 @@ function selectRepo() {
   $("repo-meta").innerHTML = `<span class="status ${esc(r.status.toLowerCase())}">${esc(r.status.toLowerCase())}</span>`
     + (r.commitSha ? ` · <a href="https://github.com/${esc(r.fullName)}/tree/${esc(r.commitSha)}" target="_blank" rel="noopener">${esc(r.commitSha.slice(0, 7))}</a>` : "")
     + (stats ? ` · ${esc(stats)}` : "");
-  const questions = SUGGESTIONS[r.fullName] || GENERIC;
-  $("suggestions").innerHTML = questions.map((q) => `<button class="chip" type="button">${esc(q)}</button>`).join("");
-  $("suggestions").querySelectorAll(".chip").forEach((chip) => chip.addEventListener("click", () => {
-    $("question").value = chip.textContent;
-    $("ask-form").requestSubmit();
-  }));
+  const examples = EXAMPLES[r.fullName] || GENERIC;
+  chips("suggestions", examples.questions, "question", "ask-form");
+  chips("search-examples", examples.searches, "query", "search-form");
+  chips("class-examples", examples.classes, "class-name", "class-form");
+  for (const id of ["question", "query", "class-name"]) $(id).value = "";
   $("answer").innerHTML = "";
   $("hits").innerHTML = "";
   $("outline").innerHTML = "";
@@ -277,7 +343,7 @@ $("ask-form").addEventListener("submit", async (event) => {
   if (!state.repo) return;
   const button = $("ask-btn");
   busy(button, true, "Thinking…");
-  $("answer").innerHTML = '<p class="meta"><span class="spinner"></span>Retrieving code and asking the model. On the free CPU demo a new question can take a few minutes; the suggested questions are cached and answer instantly.</p>';
+  $("answer").innerHTML = '<p class="meta"><span class="spinner"></span>Retrieving code and asking the model. A new question takes seconds with a GPU or Claude, and can take a few minutes on a CPU-only model; repeated questions are cached and answer instantly.</p>';
   try {
     // submit, then poll: a slow CPU model can outlast the idle timeout of the proxy in front of the
     // service, so no single request waits for more than ~20 s
@@ -298,7 +364,7 @@ $("ask-form").addEventListener("submit", async (event) => {
     const cache = a.cache?.status || "MISS";
     const cacheBadge = cache === "MISS" ? "" : `<span class="badge cache" title="${esc(a.cache.matchedQuestion || "")}">${cache === "EXACT" ? "cached answer" : "answer to a similar question"}</span>`;
     const budget = headers.get("X-Token-Budget-Remaining");
-    $("answer").innerHTML = `<div class="meta" style="margin:14px 0 6px">${cacheBadge}${a.model ? `<span class="badge">${esc(a.model)}</span>` : ""}<span class="badge">${(a.latencyMs / 1000).toFixed(1)} s</span>${budget ? `<span class="badge">${Number(budget).toLocaleString()} tokens left today</span>` : ""}</div>`
+    $("answer").innerHTML = `<div class="meta" style="margin:14px 0 6px">${DEMO ? `<span class="badge">recorded response</span>` : ""}${cacheBadge}${a.model ? `<span class="badge">${esc(a.model)}</span>` : ""}<span class="badge">${(a.latencyMs / 1000).toFixed(1)} s</span>${budget ? `<span class="badge">${Number(budget).toLocaleString()} tokens left today</span>` : ""}</div>`
       + (cache === "SEMANTIC" ? `<p class="meta">Reusing the answer to “${esc(a.cache.matchedQuestion)}” (${(a.cache.similarity * 100).toFixed(1)}% similar).</p>` : "")
       + markdown(a.answer, linkFor)
       + (a.sources.length ? `<details ${a.citations.length ? "" : "open"}><summary>${a.citations.length} cited of ${a.sources.length} sources shown to the model</summary><ul class="sources">`
@@ -380,6 +446,11 @@ document.querySelectorAll(".tabs button").forEach((tab) => tab.addEventListener(
   document.querySelectorAll("[data-panel]").forEach((p) => p.classList.toggle("hidden", p.dataset.panel !== tab.dataset.tab));
 }));
 $("repo").addEventListener("change", selectRepo);
+if (DEMO) {
+  $("demo-banner").classList.remove("hidden");
+  $("ingest-card").classList.add("hidden");
+  Object.assign($("dashboard-link"), { href: "dashboard.png", textContent: "Dashboard (screenshot)" });
+}
 loadRepos();
 </script>
 </body>

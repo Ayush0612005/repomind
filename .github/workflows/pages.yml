@@ -1,0 +1,41 @@
+# Publishes the recorded demo to GitHub Pages: the real web UI, replaying responses recorded from a
+# running RepoMind (deploy/pages/record.mjs), so the demo link works without a server.
+name: Demo site
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - src/main/resources/static/index.html
+      - deploy/pages/**
+      - docs/images/dashboard.png
+      - .github/workflows/pages.yml
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v5
+      - name: Assemble the site
+        run: |
+          mkdir _site
+          cp src/main/resources/static/index.html deploy/pages/demo-data.json docs/images/dashboard.png _site/
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v4
+        with:
+          path: _site
+      - id: deployment
+        uses: actions/deploy-pages@v4

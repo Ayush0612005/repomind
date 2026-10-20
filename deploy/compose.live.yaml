@@ -1,0 +1,25 @@
+# Live demo from a laptop: layered over compose.prod.yaml by deploy/live-demo.ps1. Runs the local
+# model on an NVIDIA GPU (7B answers in seconds instead of minutes on CPU) and publishes the site
+# through a Cloudflare quick tunnel: a temporary public https://*.trycloudflare.com URL, with no
+# account, port forwarding or open inbound ports.
+services:
+  ollama:
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+
+  app:
+    environment:
+      REPOMIND_OLLAMA_CHAT_MODEL: qwen2.5-coder:7b
+      SPRING_AI_OLLAMA_CHAT_OPTIONS_NUMCTX: "8192"
+
+  tunnel:
+    image: cloudflare/cloudflared:2026.9.3
+    restart: unless-stopped
+    depends_on: [caddy]
+    # Caddy serves plain HTTP inside the network (SITE_ADDRESS=:80); Cloudflare terminates HTTPS
+    command: ["tunnel", "--no-autoupdate", "--url", "http://caddy:80"]

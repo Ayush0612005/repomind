@@ -8,6 +8,10 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 
 > All six roadmap phases are complete; see the roadmap and evaluation results below.
 
+**Try it:** [recorded demo](https://ayush0612005.github.io/repomind/), the real web UI replaying responses
+recorded from a running instance (clickable examples, no server needed). For a live instance, one
+command starts the whole stack and prints a public link; see [Live demo](#live-demo).
+
 ![RepoMind demo: asking a question, searching code, exploring a class, and the operations dashboard](docs/images/demo.gif)
 
 | Cited answers | Hybrid search | Class outlines |
@@ -202,9 +206,39 @@ Set `REPOMIND_CHAT_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` to evaluate Claud
   `deploy/grafana/build_dashboard.py`.
 - **Production stack** (`deploy/compose.prod.yaml`): Postgres + pgvector, Kafka, Redis, Ollama, the
   app, Prometheus, Grafana and Caddy, which serves HTTPS automatically on an `sslip.io` hostname
-  and keeps `/actuator` off the internet. `deploy/setup-vm.sh` provisions a fresh Ubuntu VM (sized for
-  an Oracle Cloud Always Free Ampere instance) in one command, and `deploy/bootstrap-demo.sh` indexes
-  the demo repositories and pre-warms the answer cache.
+  and keeps `/actuator` off the internet. `deploy/setup-vm.sh` provisions a fresh Ubuntu VM in one
+  command, and `deploy/bootstrap-demo.sh` indexes the demo repositories and pre-warms the answer
+  cache.
+- **Slow models behind proxies:** a CPU-only model can take minutes per answer, longer than a
+  proxy's idle timeout (Cloudflare and most hosting proxies cut requests at 60–100 s). The UI
+  therefore uses `/ask-jobs`: the request waits up to 20 s, then returns `202` and the answer is
+  long-polled, so no single request runs long.
+- **Single-container image** (`deploy/huggingface/`): every service in one image on port 7860 with
+  the demo data restored at boot, built for a Hugging Face Docker Space (now a paid feature).
+
+### Recorded demo
+
+[ayush0612005.github.io/repomind](https://ayush0612005.github.io/repomind/) is the same
+`index.html`, served by GitHub Pages. On a static host it replays responses that
+`deploy/pages/record.mjs` recorded from a running instance: the suggested questions
+(`qwen2.5-coder:7b` on a laptop GPU), searches in all three modes, and class outlines. The
+`Demo site` workflow republishes it when the UI or the recording changes.
+
+### Live demo
+
+On a PC with Docker Desktop and an NVIDIA GPU, one command runs the full stack with the 7B model
+on the GPU (10–25 s per new answer) and opens a [Cloudflare quick
+tunnel](https://developers.cloudflare.com/cloudflare-one/connections/connect-networks/do-more-with-tunnels/trycloudflare/),
+which needs no account or open ports:
+
+```powershell
+powershell -ExecutionPolicy Bypass -File deploy\live-demo.ps1        # prints https://<random>.trycloudflare.com
+powershell -ExecutionPolicy Bypass -File deploy\live-demo.ps1 -Stop  # indexed data is kept
+```
+
+The link changes on every start and works while the PC is on. It needs `deploy/.env` (from
+`deploy/.env.example`, with `SITE_ADDRESS=:80` and `HTTP_PORT=8088`) and the demo repositories
+indexed once (`deploy/bootstrap-demo.sh`).
 
 ## Running locally
 
