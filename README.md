@@ -53,6 +53,8 @@ chunking, hybrid retrieval, caching, cost control, provider fallback and measure
 | `GET` | `/api/repos`, `/api/repos/{id}`, `/api/jobs/{id}` | Repository and ingestion progress |
 | `GET` | `/api/repos/{id}/search?q=…&mode=HYBRID\|VECTOR\|KEYWORD` | Ranked code chunks with `file:line` citations |
 | `POST` | `/api/repos/{id}/ask` | Answer a question (`{"question": "…"}`) from retrieved code, citing sources |
+| `POST` | `/api/repos/{id}/ask-jobs` | The same, for clients behind a proxy that times out slow answers: `200` with the answer if it is ready within 20 s, else `202` with a `Location` to fetch it from |
+| `GET` | `/api/ask-jobs/{id}` | A submitted question: `200` with the answer, or `202` while the model is still working (waits up to 20 s) |
 | `POST` | `/api/repos/{id}/pulls/{n}/review` | Preview a review of a pull request without posting it |
 | `POST` | `/api/repos/{id}/pulls/{n}/reviews` | Queue a review of the PR's head commit and post it to GitHub |
 | `GET` | `/api/review-jobs/{id}` | Review job status and the posted review's URL |

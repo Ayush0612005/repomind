@@ -32,3 +32,6 @@ repomind:
     circuit-breaker:
       # tests fail the scripted model on purpose; a breaker opened by one test must not fail the next
       minimum-calls: 1000
+  qa:
+    # asynchronous asks reply 202 after this; short so tests of slow answers stay fast
+    job-wait: 1s

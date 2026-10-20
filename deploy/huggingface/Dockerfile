@@ -17,10 +17,11 @@ RUN mvn -B -q package -DskipTests && cp target/repomind-*.jar /app.jar
 
 # ------------------------------------------------------------------------------ models and runtime
 FROM ollama/ollama:0.40.4 AS models
-# pull at build time so a cold start doesn't download 2 GB; drop GPU libraries the Space can't use
+# pull at build time so a cold start doesn't download 2 GB; drop the GPU backends (CUDA, ROCm, MLX,
+# Vulkan: ~2.6 GB) that the CPU-only Space never loads
 RUN (ollama serve > /dev/null 2>&1 &) && sleep 5 \
  && ollama pull nomic-embed-text && ollama pull qwen2.5-coder:3b \
- && rm -rf /usr/lib/ollama/cuda_* /usr/lib/ollama/rocm*
+ && rm -rf /usr/lib/ollama/cuda_* /usr/lib/ollama/rocm* /usr/lib/ollama/mlx_* /usr/lib/ollama/vulkan
 
 # ------------------------------------------------------------------------------------- the Space
 FROM eclipse-temurin:25-jre
@@ -32,7 +33,7 @@ ARG CADDY=2.10.0
 RUN apt-get update && apt-get install -y --no-install-recommends ca-certificates curl gnupg redis-server \
  && install -d /usr/share/postgresql-common/pgdg \
  && curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc -o /usr/share/postgresql-common/pgdg/apt.postgresql.org.asc \
- && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt noble-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
+ && echo "deb [signed-by=/usr/share/postgresql-common/pgdg/apt.postgresql.org.asc] https://apt.postgresql.org/pub/repos/apt $(. /etc/os-release && echo $VERSION_CODENAME)-pgdg main" > /etc/apt/sources.list.d/pgdg.list \
  && apt-get update && apt-get install -y --no-install-recommends postgresql-18 postgresql-18-pgvector \
  && rm -rf /var/lib/apt/lists/*
 

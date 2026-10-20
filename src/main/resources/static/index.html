@@ -223,7 +223,7 @@ async function api(path, options = {}) {
     if (res.status === 429) message += ` Try again in ${res.headers.get("Retry-After") || "a few"} seconds.`;
     throw new Error(message);
   }
-  return { body, headers: res.headers };
+  return { body, headers: res.headers, status: res.status };
 }
 
 function busy(button, on, label) {
@@ -279,9 +279,15 @@ $("ask-form").addEventListener("submit", async (event) => {
   busy(button, true, "Thinking…");
   $("answer").innerHTML = '<p class="meta"><span class="spinner"></span>Retrieving code and asking the model. On the free CPU demo a new question can take a few minutes; the suggested questions are cached and answer instantly.</p>';
   try {
-    const { body: a, headers } = await api(`/api/repos/${state.repo.id}/ask`, {
+    // submit, then poll: a slow CPU model can outlast the idle timeout of the proxy in front of the
+    // service, so no single request waits for more than ~20 s
+    let { body: a, headers, status } = await api(`/api/repos/${state.repo.id}/ask-jobs`, {
       method: "POST", body: JSON.stringify({ question: $("question").value })
     });
+    while (status === 202) {
+      await new Promise((resolve) => setTimeout(resolve, 1000));
+      ({ body: a, headers, status } = await api(headers.get("Location") || `/api/ask-jobs/${a.id}`));
+    }
     const byIndex = new Map(a.sources.map((s) => [s.index, s]));
     const linkFor = (n) => {
       const s = byIndex.get(n);
