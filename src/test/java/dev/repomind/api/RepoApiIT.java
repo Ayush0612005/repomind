@@ -70,7 +70,7 @@ class RepoApiIT {
 	}
 
 	private MockMvcTester.MockMvcRequestBuilder post(String body) {
-		return mvc.post().uri("/api/repos").contentType(MediaType.APPLICATION_JSON).content(body);
+		return mvc.post().uri("/api/repos").header("X-Api-Key", "admin-test-key").contentType(MediaType.APPLICATION_JSON).content(body);
 	}
 
 }

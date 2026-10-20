@@ -112,7 +112,7 @@ class ReviewPostingIT {
 	void apiTriggerReviewsTheCurrentHeadAndRetriesAFailedPost() {
 		github.failNextPublish("GitHub returned 502");
 
-		MvcTestResult queued = mvc.post().uri("/api/repos/{id}/pulls/7/reviews", repo.id()).exchange();
+		MvcTestResult queued = mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/7/reviews", repo.id()).exchange();
 		assertThat(queued).hasStatus(HttpStatus.ACCEPTED).headers().containsHeader("Location");
 		UUID jobId = UUID.fromString(JsonPath.read(
 				new String(queued.getResponse().getContentAsByteArray(), StandardCharsets.UTF_8), "$.id"));
@@ -126,11 +126,11 @@ class ReviewPostingIT {
 			.isEqualTo("FAILED");
 
 		// asking again retries the same commit's job
-		assertThat(mvc.post().uri("/api/repos/{id}/pulls/7/reviews", repo.id())).hasStatus(HttpStatus.ACCEPTED);
+		assertThat(mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/7/reviews", repo.id())).hasStatus(HttpStatus.ACCEPTED);
 		assertThat(awaitTerminal(jobId).status()).isEqualTo(Status.POSTED);
 
 		// and once posted, asking again returns the existing job without posting twice
-		assertThat(mvc.post().uri("/api/repos/{id}/pulls/7/reviews", repo.id())).hasStatusOk();
+		assertThat(mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/7/reviews", repo.id())).hasStatusOk();
 		assertThat(github.publishedTo(repo)).hasSize(1);
 		assertThat(mvc.get().uri("/api/review-jobs/{id}", UUID.randomUUID())).hasStatus(HttpStatus.NOT_FOUND);
 	}

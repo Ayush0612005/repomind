@@ -110,22 +110,22 @@ class ReviewIT {
 	@Test
 	void reviewEndpointReturnsTheReviewAndMapsFailures() {
 		model.replyWith(prompt -> MODEL_REVIEW);
-		assertThat(mvc.post().uri("/api/repos/{id}/pulls/7/review", repo.id())).hasStatusOk()
+		assertThat(mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/7/review", repo.id())).hasStatusOk()
 			.bodyJson()
 			.extractingPath("$.comments[0].severity")
 			.isEqualTo("BLOCKER");
 
 		model.replyWith(prompt -> "Looks good to me!");
-		assertThat(mvc.post().uri("/api/repos/{id}/pulls/7/review", repo.id()))
+		assertThat(mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/7/review", repo.id()))
 			.hasStatus(HttpStatus.SERVICE_UNAVAILABLE);
 
-		assertThat(mvc.post().uri("/api/repos/{id}/pulls/8/review", repo.id())).hasStatus(HttpStatus.NOT_FOUND);
-		assertThat(mvc.post().uri("/api/repos/{id}/pulls/0/review", repo.id())).hasStatus(HttpStatus.BAD_REQUEST);
-		assertThat(mvc.post().uri("/api/repos/{id}/pulls/7/review", UUID.randomUUID()))
+		assertThat(mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/8/review", repo.id())).hasStatus(HttpStatus.NOT_FOUND);
+		assertThat(mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/0/review", repo.id())).hasStatus(HttpStatus.BAD_REQUEST);
+		assertThat(mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/7/review", UUID.randomUUID()))
 			.hasStatus(HttpStatus.NOT_FOUND);
 
 		Repo unindexed = repos.upsert("acme", "new-" + UUID.randomUUID(), "https://github.com/acme/new.git");
-		assertThat(mvc.post().uri("/api/repos/{id}/pulls/7/review", unindexed.id())).hasStatus(HttpStatus.CONFLICT);
+		assertThat(mvc.post().header("X-Api-Key", "admin-test-key").uri("/api/repos/{id}/pulls/7/review", unindexed.id())).hasStatus(HttpStatus.CONFLICT);
 	}
 
 	@Test

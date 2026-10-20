@@ -5,6 +5,7 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.http.HttpHeaders;
 import org.springframework.stereotype.Component;
 import org.springframework.util.StringUtils;
+import org.springframework.web.method.HandlerMethod;
 import org.springframework.web.servlet.HandlerInterceptor;
 
 /**
@@ -38,6 +39,11 @@ public class LimitsInterceptor implements HandlerInterceptor {
 		}
 		ApiClient client = identify(request);
 		request.setAttribute(ApiClient.ATTRIBUTE, client);
+		if (client.anonymous() && handler instanceof HandlerMethod method
+				&& (method.hasMethodAnnotation(RequiresApiKey.class)
+						|| method.getBeanType().isAnnotationPresent(RequiresApiKey.class))) {
+			throw new InvalidApiKeyException("This endpoint requires an API key (header " + API_KEY_HEADER + ")");
+		}
 
 		RateLimiter.Decision decision = rateLimiter.acquire(client);
 		response.setHeader("X-RateLimit-Limit", String.valueOf(decision.limit()));

@@ -59,6 +59,26 @@ class LimitsIT {
 	}
 
 	@Test
+	void indexingAndReviewEndpointsRequireAKeyWhileReadsStayOpen() {
+		String body = "{\"repository\": \"acme/demo\"}";
+
+		assertThat(mvc.post().uri("/api/repos").contentType(MediaType.APPLICATION_JSON).content(body))
+			.hasStatus(HttpStatus.UNAUTHORIZED)
+			.bodyJson()
+			.extractingPath("$.detail")
+			.asString()
+			.contains("requires an API key");
+		assertThat(mvc.post().uri("/api/repos/{id}/pulls/1/reviews", java.util.UUID.randomUUID()))
+			.hasStatus(HttpStatus.UNAUTHORIZED);
+		// reads remain available to anonymous visitors of a public demo
+		assertThat(get("/api/repos", null)).hasStatusOk();
+		// with a key the guard passes and the request reaches the controller (404: no such repository)
+		assertThat(mvc.post()
+			.uri("/api/repos/{id}/reindex", java.util.UUID.randomUUID())
+			.header("X-Api-Key", "admin-test-key")).hasStatus(HttpStatus.NOT_FOUND);
+	}
+
+	@Test
 	void exhaustedBudgetBlocksModelCallsButStillServesCachedAnswers() {
 		model.reset();
 		Repo repo = indexer.index("budget", TestIndexer.PETCLINIC);

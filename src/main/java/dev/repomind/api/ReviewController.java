@@ -4,6 +4,7 @@ import java.net.URI;
 import java.util.UUID;
 
 import dev.repomind.limits.ApiClient;
+import dev.repomind.limits.RequiresApiKey;
 import dev.repomind.limits.TokenBudget;
 import dev.repomind.repo.RepoDao;
 import dev.repomind.review.Review;
@@ -45,6 +46,7 @@ public class ReviewController {
 	 * Generates a review of the pull request using the repository's index for context. Nothing is
 	 * posted to GitHub; the comments are returned for inspection.
 	 */
+	@RequiresApiKey
 	@PostMapping("/api/repos/{id}/pulls/{number}/review")
 	ResponseEntity<Review> review(@PathVariable UUID id, @PathVariable @Min(1) int number,
 			@RequestAttribute(ApiClient.ATTRIBUTE) ApiClient client) {
@@ -57,6 +59,7 @@ public class ReviewController {
 	 * Queues a review of the pull request's current head commit that is posted to GitHub. Returns 202
 	 * with the new job, or 200 with the existing job if that commit was already reviewed.
 	 */
+	@RequiresApiKey
 	@PostMapping("/api/repos/{id}/pulls/{number}/reviews")
 	ResponseEntity<ReviewJob> publish(@PathVariable UUID id, @PathVariable @Min(1) int number) {
 		var repo = repos.findById(id).orElseThrow(() -> new NotFoundException("No repository " + id));

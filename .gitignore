@@ -35,3 +35,7 @@ build/
 .env
 /data/
 *.log
+
+# deployment secrets
+deploy/.env
+deploy/admin-key.txt

@@ -1,0 +1,28 @@
+# e.g. repomind.140-238-1-2.sslip.io (automatic HTTPS), or :80 for a plain-HTTP local test
+{$SITE_ADDRESS} {
+	encode zstd gzip
+
+	header {
+		Strict-Transport-Security "max-age=31536000"
+		X-Content-Type-Options "nosniff"
+		Referrer-Policy "strict-origin-when-cross-origin"
+		-Server
+	}
+
+	# metrics and health stay on the internal network, scraped by Prometheus. This must be a handle
+	# block: Caddy runs handle before a bare respond, so the catch-all proxy below would win
+	handle /actuator* {
+		respond 404
+	}
+
+	handle /grafana* {
+		reverse_proxy grafana:3000
+	}
+
+	handle {
+		# flush immediately so MCP's streamed responses are not buffered
+		reverse_proxy app:8080 {
+			flush_interval -1
+		}
+	}
+}

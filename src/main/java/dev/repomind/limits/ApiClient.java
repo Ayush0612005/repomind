@@ -19,4 +19,9 @@ public record ApiClient(String id, LimitsProperties.Policy policy) {
 		return this == UNLIMITED;
 	}
 
+	/** True for callers without an API key, limited by the anonymous per-IP policy. */
+	public boolean anonymous() {
+		return id.startsWith("anonymous:");
+	}
+
 }

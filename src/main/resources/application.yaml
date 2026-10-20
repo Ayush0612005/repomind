@@ -73,7 +73,26 @@ management:
   endpoints:
     web:
       exposure:
-        include: health,info,metrics
+        # prometheus is scraped over the internal Docker network; the reverse proxy does not expose it
+        include: health,info,metrics,prometheus
+  endpoint:
+    health:
+      probes:
+        enabled: true
+  metrics:
+    tags:
+      application: repomind
+    distribution:
+      # histogram buckets so Grafana can compute p50/p95/p99 across instances
+      percentiles-histogram:
+        http.server.requests: true
+        repomind.qa.model.latency: true
+        repomind.review.model.latency: true
+        repomind.search.latency: true
+        repomind.embedding.latency: true
+        repomind.ingest.duration: true
+      slo:
+        http.server.requests: 100ms,500ms,1s,5s,30s
 
 repomind:
   chat:

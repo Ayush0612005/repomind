@@ -6,6 +6,7 @@ import java.util.UUID;
 
 import dev.repomind.ingest.IngestJobDao;
 import dev.repomind.ingest.IngestService;
+import dev.repomind.limits.RequiresApiKey;
 import dev.repomind.repo.Repo;
 import dev.repomind.repo.RepoDao;
 import jakarta.validation.Valid;
@@ -42,11 +43,13 @@ public class RepoController {
 	}
 
 	/** Queues ingestion and returns immediately; poll the job's Location for progress. */
+	@RequiresApiKey
 	@PostMapping("/repos")
 	ResponseEntity<SubmissionResponse> ingest(@Valid @RequestBody IngestRequest request) {
 		return accepted(ingest.submit(request.repository()));
 	}
 
+	@RequiresApiKey
 	@PostMapping("/repos/{id}/reindex")
 	ResponseEntity<SubmissionResponse> reindex(@PathVariable UUID id) {
 		return accepted(ingest.reindex(find(id)));

@@ -24,6 +24,10 @@ repomind:
         key-sha256: 2df5dd5ab7659b56f8f02277b8d98bf268518a9dfa0efdd11fb35b7581d90dfa
         requests-per-minute: 1000
         daily-tokens: 1
+      - name: admin-test       # key: admin-test-key; may index repositories and post reviews
+        key-sha256: 0d46389428b4ebfa8757051ceae368473fc4b38a6e2a4ab0b70e0bf6b285fbf9
+        requests-per-minute: 100000
+        daily-tokens: 100000000
   chat:
     circuit-breaker:
       # tests fail the scripted model on purpose; a breaker opened by one test must not fail the next

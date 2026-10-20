@@ -176,6 +176,22 @@ REPOMIND_EVAL_LIVE=true ./mvnw verify -Dtest=none -Dsurefire.failIfNoSpecifiedTe
 
 Set `REPOMIND_CHAT_PROVIDER=anthropic` and `ANTHROPIC_API_KEY` to evaluate Claude instead.
 
+## Web UI, dashboard and deployment
+
+- **Web UI** (`/`): pick an indexed repository, ask questions (citations link to the exact lines on
+  GitHub at the indexed commit), search code with each hit's vector and keyword rank, and explore
+  class outlines. Indexing new repositories needs an API key.
+- **Operations dashboard** (`/grafana/`, public and read-only): request rate and latency, answer-cache
+  hit rate, model calls by provider with circuit-breaker state, model latency, tokens spent per
+  client, rate-limit rejections, ingestion and review jobs, and JVM health. Prometheus scrapes
+  `/actuator/prometheus` over the internal network; the dashboard is generated from
+  `deploy/grafana/build_dashboard.py`.
+- **Production stack** (`deploy/compose.prod.yaml`): Postgres + pgvector, Kafka, Redis, Ollama, the
+  app, Prometheus, Grafana and Caddy, which serves HTTPS automatically on an `sslip.io` hostname
+  and keeps `/actuator` off the internet. `deploy/setup-vm.sh` provisions a fresh Ubuntu VM (sized for
+  an Oracle Cloud Always Free Ampere instance) in one command, and `deploy/bootstrap-demo.sh` indexes
+  the demo repositories and pre-warms the answer cache.
+
 ## Running locally
 
 Prerequisites: JDK 25, Docker (with NVIDIA GPU support for Ollama, optional).

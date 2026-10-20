@@ -59,7 +59,8 @@ class AskIT {
 			.containsExactly(MessageType.SYSTEM, MessageType.USER);
 		assertThat(sent.getInstructions().getFirst().getText()).contains(repo.fullName());
 		assertThat(sent.getInstructions().getLast().getText()).contains("[1] VetController.java:", "showVetList")
-			.endsWith("Question: How is the vet list paged?");
+			.contains("Question: How is the vet list paged?")
+			.endsWith("cite each claim with its source number, e.g. [1].");
 	}
 
 	@Test

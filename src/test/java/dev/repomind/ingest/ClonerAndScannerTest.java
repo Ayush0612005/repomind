@@ -27,6 +27,8 @@ class ClonerAndScannerTest {
 		String url = LocalGitRepo.create(temp.resolve("origin"), Map.of(
 				"src/main/java/a/App.java", "package a; class App {}",
 				"src/test/java/a/AppTest.java", "package a; class AppTest {}",
+				"src/test/resources/fixtures/Sample.java", "class Sample {}",
+				"src/main/resources/templates/Kept.java", "class Kept {}",
 				"target/generated/Gen.java", "class Gen {}",
 				"build/Out.java", "class Out {}",
 				"README.md", "# readme",
@@ -40,7 +42,8 @@ class ClonerAndScannerTest {
 		assertThat(checkout.branch()).isEqualTo("main");
 		assertThat(checkout.commitSha()).hasSize(40);
 		assertThat(scan.files()).extracting(SourceScanner.SourceFile::path)
-			.containsExactly("src/main/java/a/App.java", "src/test/java/a/AppTest.java");
+			.containsExactly("src/main/java/a/App.java", "src/main/resources/templates/Kept.java",
+					"src/test/java/a/AppTest.java");
 		assertThat(scan.skippedTooLarge()).isEqualTo(1);
 		assertThat(scan.truncated()).isFalse();
 

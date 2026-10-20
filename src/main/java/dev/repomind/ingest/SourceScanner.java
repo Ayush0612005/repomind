@@ -41,7 +41,10 @@ public class SourceScanner {
 
 			@Override
 			public FileVisitResult preVisitDirectory(Path dir, BasicFileAttributes attrs) {
-				return !dir.equals(root) && SKIPPED_DIRECTORIES.contains(dir.getFileName().toString())
+				if (dir.equals(root)) {
+					return FileVisitResult.CONTINUE;
+				}
+				return SKIPPED_DIRECTORIES.contains(dir.getFileName().toString()) || isTestResources(dir)
 						? FileVisitResult.SKIP_SUBTREE : FileVisitResult.CONTINUE;
 			}
 
@@ -68,6 +71,16 @@ public class SourceScanner {
 			files.add(new SourceFile(relative, read(file)));
 		}
 		return new Scan(files, tooLarge[0], truncated);
+	}
+
+	/**
+	 * {@code src/test/resources} (Maven/Gradle layout): .java files there are fixtures that tests
+	 * read as data, not code of the project, and indexing them makes answers describe the fixture.
+	 */
+	static boolean isTestResources(Path dir) {
+		Path parent = dir.getParent();
+		return dir.getFileName().toString().equals("resources") && parent != null
+				&& parent.getFileName() != null && parent.getFileName().toString().equals("test");
 	}
 
 	private static String read(Path file) throws IOException {
