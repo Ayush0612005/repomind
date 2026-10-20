@@ -17,6 +17,7 @@ import io.micrometer.core.instrument.simple.SimpleMeterRegistry;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.redis.core.StringRedisTemplate;
 import org.springframework.jdbc.core.simple.JdbcClient;
 import org.springframework.test.web.servlet.assertj.MockMvcTester;
 import tools.jackson.databind.json.JsonMapper;
@@ -42,6 +43,9 @@ class AnswerCacheIT {
 	@Autowired
 	MockMvcTester mvc;
 
+	@Autowired
+	StringRedisTemplate redis;
+
 	private Repo repo;
 
 	@BeforeEach
@@ -59,6 +63,19 @@ class AnswerCacheIT {
 		assertThat(second.cache().status()).isEqualTo(Status.EXACT);
 		assertThat(second.answer()).isEqualTo(first.answer());
 		assertThat(second.citations()).isEqualTo(first.citations());
+		assertThat(model.prompts()).hasSize(1);
+	}
+
+	@Test
+	void repeatFoundOnlyInPostgresAfterRedisLostItIsExactAndRefillsRedis() {
+		answers.ask(repo, "How is the vet list paged?");
+		redis.delete(redis.keys("repomind:answer:*")); // e.g. Redis restarted without persistence
+
+		Answer again = answers.ask(repo, "how is the vet list paged");
+
+		assertThat(again.cache().status()).isEqualTo(Status.EXACT);
+		assertThat(again.cache().matchedQuestion()).isNull();
+		assertThat(redis.keys("repomind:answer:*")).isNotEmpty();
 		assertThat(model.prompts()).hasSize(1);
 	}
 

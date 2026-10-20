@@ -103,6 +103,17 @@ public class AnswerCache {
 		guarded("hit count", () -> jdbc.sql("UPDATE answer_cache SET hits = hits + 1, last_hit_at = now() WHERE id = :id")
 			.param("id", nearest.id())
 			.update());
+		if (QuestionKey.normalize(nearest.question()).equals(QuestionKey.normalize(question))) {
+			// the same question, found here because Redis lost it (restart, eviction): report it as the
+			// exact hit it is and put it back in the fast tier
+			String key = KEY_PREFIX + QuestionKey.of(repo.activeJobId(), question);
+			guarded("exact refill", () -> {
+				redis.opsForValue().set(key, nearest.answer(), properties.ttl());
+				return null;
+			});
+			return Optional.ofNullable(read(nearest.answer()))
+				.map(a -> withCache(a, new Answer.Cache(Answer.Cache.Status.EXACT, null, 1.0)));
+		}
 		return Optional.ofNullable(read(nearest.answer()))
 			.map(a -> withCache(a, new Answer.Cache(Answer.Cache.Status.SEMANTIC, nearest.question(),
 					Math.min(1.0, nearest.similarity()))));
