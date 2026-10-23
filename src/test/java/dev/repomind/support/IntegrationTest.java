@@ -13,11 +13,13 @@ import org.springframework.test.context.ActiveProfiles;
 
 /**
  * Full application context against Testcontainers Postgres/Kafka with fake AI models. Every
- * integration test uses the same configuration so Spring caches and shares one context.
+ * integration test uses the same configuration so Spring caches and shares one context, and
+ * with it one set of containers. The server runs on a random port for tests that connect over
+ * real HTTP, such as the MCP client; MockMvc works the same either way.
  */
 @Target(ElementType.TYPE)
 @Retention(RetentionPolicy.RUNTIME)
-@SpringBootTest
+@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
 @AutoConfigureMockMvc
 @ActiveProfiles("test")
 @Import({ TestcontainersConfiguration.class, FakeAiConfiguration.class, TestIndexer.class })
