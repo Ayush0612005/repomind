@@ -8,9 +8,8 @@ import java.time.Duration;
 import java.util.List;
 import java.util.Map;
 
-import dev.repomind.TestcontainersConfiguration;
 import dev.repomind.repo.Repo;
-import dev.repomind.support.FakeAiConfiguration;
+import dev.repomind.support.IntegrationTest;
 import dev.repomind.support.ScriptedChatModel;
 import dev.repomind.support.TestIndexer;
 import io.modelcontextprotocol.client.McpClient;
@@ -24,10 +23,7 @@ import org.junit.jupiter.api.AfterEach;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
-import org.springframework.boot.test.context.SpringBootTest;
 import org.springframework.boot.test.web.server.LocalServerPort;
-import org.springframework.context.annotation.Import;
-import org.springframework.test.context.ActiveProfiles;
 import tools.jackson.databind.JsonNode;
 import tools.jackson.databind.json.JsonMapper;
 
@@ -35,9 +31,7 @@ import tools.jackson.databind.json.JsonMapper;
  * RepoMind as an MCP server, exercised by the official MCP Java SDK client over Streamable HTTP
  * on a real port, the way an agent connects to it.
  */
-@SpringBootTest(webEnvironment = SpringBootTest.WebEnvironment.RANDOM_PORT)
-@ActiveProfiles("test")
-@Import({ TestcontainersConfiguration.class, FakeAiConfiguration.class, TestIndexer.class })
+@IntegrationTest
 class McpServerIT {
 
 	@LocalServerPort
