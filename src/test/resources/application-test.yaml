@@ -24,6 +24,10 @@ repomind:
         key-sha256: 2df5dd5ab7659b56f8f02277b8d98bf268518a9dfa0efdd11fb35b7581d90dfa
         requests-per-minute: 1000
         daily-tokens: 1
+      - name: mcp-budget-test  # key: mcp-budget-test-key; McpServerIT's own, so it can't spend LimitsIT's budget
+        key-sha256: 9d1afcaf45ded7944a662060181ca8d109707e1e415919b747085b8faf9e7a30
+        requests-per-minute: 1000
+        daily-tokens: 1
       - name: admin-test       # key: admin-test-key; may index repositories and post reviews
         key-sha256: 0d46389428b4ebfa8757051ceae368473fc4b38a6e2a4ab0b70e0bf6b285fbf9
         requests-per-minute: 100000

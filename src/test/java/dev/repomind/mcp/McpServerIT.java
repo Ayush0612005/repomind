@@ -114,7 +114,7 @@ class McpServerIT {
 	void appliesApiKeysAndTokenBudgetsToToolCalls() {
 		assertThatThrownBy(() -> connect("not-a-real-key")).hasStackTraceContaining("401");
 
-		McpSyncClient limited = connect("budget-test-key"); // 1 token per day
+		McpSyncClient limited = connect("mcp-budget-test-key"); // 1 token per day, its own budget
 		try {
 			assertThat(limited.callTool(new CallToolRequest("ask_codebase",
 					Map.of("repository", repo.fullName(), "question", "How is the vet list paged?")))
